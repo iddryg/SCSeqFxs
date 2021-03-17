@@ -6,7 +6,7 @@ Written by Ian Dryg for use in Amanda Lund's lab (www.thelundlab.com) in March 2
 ## To use these functions:
 1. Download SCSeqFxs.R and move to whatever folder you want. 
 2. In your own R script, you have to source SCSeqFxs.R to be able to use the functions included. To do this, run:
-souce('filepath...../SCSeqFxs.R')
+source('filepath...../SCSeqFxs.R')
 example: 
 source('/Users/drygi01/Documents/R/SCSeqFxs.R')
 3. Then you can use any of the functions listed below. 
