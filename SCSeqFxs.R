@@ -18,7 +18,8 @@ get_obj_name <- function(x) {
 # plot_markers(combined.DCs, get_obj_name(combined.DCs), c("Irf4", "Il12a", "Il15", "Cxcl12", "Cxcl16", "Ccl19", "Mki67", "Xcr1", "Eadem1"))
 plot_markers <- function(dataset, objname, marker_panel) {
   # create subdirectory to put the outputs into
-  filenames <- paste(objname, Sys.time(), sep="_")
+  foldername <- paste("custom_markers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
   dir.create(file.path(filenames))
   oldwd <- getwd()
   setwd(file.path(filenames))
@@ -27,19 +28,28 @@ plot_markers <- function(dataset, objname, marker_panel) {
   DefaultAssay(dataset) <- "RNA"
   
   # Make plots
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
+  
   # Violin plots
-  pdf(paste(filenames, ".pdf", sep=""), width = 10, height = 10)
+  pdf(paste(filenames, "_Violins.pdf", sep=""), width = 10, height = 10)
   print(VlnPlot(dataset, features = marker_panel, pt.size = 0, ncol = 2))
   dev.off()
   # Feature plots
-  pdf(paste(filenames, ".pdf", sep=""), width = 10, height = 10)
+  pdf(paste(filenames, "_FeaturePlot.pdf", sep=""), width = 10, height = 10)
   print(FeaturePlot(dataset, features = marker_panel, ncol = 2))
   dev.off()
   # Violin plots split by condition
-  pdf(paste(filenames, ".pdf", sep=""), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = marker_panel, split.by = "Condition", 
+  pdf(paste(filenames, "_SplitViolins.pdf", sep=""), width = 13, height = 10)
+  plots <- VlnPlot(dataset, features = marker_panel, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   DefaultAssay(dataset) <- tempdftassay
@@ -135,12 +145,23 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID) {
 # Markers from Huang et al 2021 - Innervated Lymph Nodes ------------------
 plot_huang2021 <- function(dataset, objname) {
   # create subdirectory to put the outputs into
-  dir.create(file.path('Huang2021_markers'))
+  foldername <- paste("Huang2021_markers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
   oldwd <- getwd()
-  setwd(file.path('Huang2021_markers'))
+  setwd(file.path(filenames))
   
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
   
   # Neutrophil panel
   neutrophil_panel1 <- c("Clec4d", "Csf3r", "Cxcr2", "Ngp", "Camp", "S100a9")
@@ -150,10 +171,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "Neutrophil_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = neutrophil_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Neutrophil_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = neutrophil_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Neutrophil_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = neutrophil_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # CD4+ Cell panel
@@ -164,10 +185,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "CD4_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = CD4_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "CD4_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = CD4_panel1, split.by = "Condition", 
+  pdf(paste(objname, "CD4_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = CD4_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # NK Cell panel
@@ -178,10 +199,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "NK_Panel_FeaturePlot1.pdf", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = NK_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "NK_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = NK_panel1, split.by = "Condition", 
+  pdf(paste(objname, "NK_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = NK_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Mitotic Cell panel
@@ -192,10 +213,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "Mitotic_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = Mitotic_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Mitotic_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Mitotic_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Mitotic_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Mitotic_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # "Tissue T" Cell panel
@@ -206,10 +227,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "TissueTcells_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = TissueTcells_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "TissueTcells_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = TissueTcells_panel1, split.by = "Condition", 
+  pdf(paste(objname, "TissueTcells_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = TissueTcells_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Mast Cell panel
@@ -220,10 +241,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "Mast_Panel_FeaturePlot1.pdf", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = Mast_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Mast_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Mast_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Mast_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Mast_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # DC Cell panel
@@ -234,10 +255,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "DC_Panel_FeaturePlot1.pdf", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = DC_panel4, ncol = 3))
   dev.off()
-  pdf(paste(objname, "DC_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = DC_panel4, split.by = "Condition", 
+  pdf(paste(objname, "DC_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = DC_panel4, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Random Cell panel
@@ -248,10 +269,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "Random_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = Random_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Random_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Random_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Random_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Random_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Langerhans Cell panel
@@ -262,10 +283,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(objname, "Langerhans_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = Langerhans_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Langerhans_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Langerhans_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Langerhans_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Langerhans_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # DC5 Cell panel
@@ -276,10 +297,10 @@ plot_huang2021 <- function(dataset, objname) {
   pdf(paste(obj_name(dataset), "DC5_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = DC5_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "DC5_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = DC5_panel1, split.by = "Condition", 
+  pdf(paste(objname, "DC5_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = DC5_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   DefaultAssay(dataset) <- tempdftassay
@@ -295,12 +316,23 @@ plot_huang2021 <- function(dataset, objname) {
 #       Cd11c+(Itgax), Siglech+, CD45R/B220+(Ptprc),
 plot_FilioDCMarkers <- function(dataset, objname) {
   # create subdirectory to put the outputs into
-  dir.create(file.path('FilioDC_markers'))
+  foldername <- paste("FilioDC_markers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
   oldwd <- getwd()
-  setwd(file.path('FilioDC_markers'))
+  setwd(file.path(filenames))
   
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "DC_UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "DC_UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
   
   # Lineage Marker panel. Ter-119 is Ly76
   Lin_panel1 <- c("Ter-119", "Cd3e", "Cd19", "Klrb1c", "", "", "", "")
@@ -310,24 +342,24 @@ plot_FilioDCMarkers <- function(dataset, objname) {
   pdf(paste(objname, "Lin_Panel_FeaturePlot1.pdf", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = Lin_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Lin_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Lin_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Lin_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Lin_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # pDC panel
-  pDC_panel1 <- c("Itgax", "Siglech", "Ptprc", "Bst2", "Batf3", "Irf8", "Flt3l", "")
+  pDC_panel1 <- c("Itgax", "Siglech", "Ptprc", "Bst2", "Batf3", "Irf8", "Flt3l", "Irf7")
   pdf(paste(objname, "pDC_Panel_Violins1.pdf", sep="_"), width = 14, height = 12)
   print(VlnPlot(dataset, features = pDC_panel1, pt.size = 0, ncol = 3))
   dev.off()
   pdf(paste(objname, "pDC_Panel_FeaturePlot1.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = pDC_panel1, ncol = 3))
   dev.off()
-  pdf(paste(objname, "pDC_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = pDC_panel1, split.by = "Condition", 
+  pdf(paste(objname, "pDC_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = pDC_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # classical DC panel (cDC1 and cDC2)
@@ -345,10 +377,10 @@ plot_FilioDCMarkers <- function(dataset, objname) {
   pdf(paste(objname, "cDC_Panel_FeaturePlot1.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = cDC_panel1, ncol = 3))
   dev.off()
-  pdf(paste(objname, "cDC_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = cDC_panel1, split.by = "Condition", 
+  pdf(paste(objname, "cDC_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = cDC_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Neutrophil panel
@@ -360,10 +392,10 @@ plot_FilioDCMarkers <- function(dataset, objname) {
   pdf(paste(objname, "Neutrophil_Panel2_FeaturePlot1.pdf", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = Neutrophil_panel2, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Neutrophil_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Neutrophil_panel2, split.by = "Condition", 
+  pdf(paste(objname, "Neutrophil_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Neutrophil_panel2, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Monocyte panel
@@ -376,10 +408,10 @@ plot_FilioDCMarkers <- function(dataset, objname) {
   pdf(paste(objname, "Mono_Panel_FeaturePlot1.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = Mono_panel1, ncol = 3))
   dev.off()
-  pdf(paste(objname, "Mono_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Mono_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Mono_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Mono_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots, nrow = 3))
   dev.off()
   
   DefaultAssay(dataset) <- tempdftassay
@@ -396,12 +428,23 @@ plot_FilioDCMarkers <- function(dataset, objname) {
 # dataset is the dataset, objname is the name of the seurat object
 plot_TaylorCD8Markers <- function(dataset, objname) {
   # create subdirectory to put the outputs into
-  dir.create(file.path('TaylorCD8_markers'))
+  foldername <- paste("TaylorCD8_markers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
   oldwd <- getwd()
-  setwd(file.path('TaylorCD8_markers'))
+  setwd(file.path(filenames))
   
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  dev.off()
   
   # Taylor panel1
   Taylor_panel1 <- c("Vps37b", "Icos", "Tcf7", "S1pr1", "Cxcr6", "Cxcr4")
@@ -411,10 +454,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot1", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = Taylor_panel1, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins1.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Taylor_panel1, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel1, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Taylor panel2
@@ -425,10 +468,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot2.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = Taylor_panel2, ncol = 3))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins2.pdf", sep="_"), width = 14, height = 12)
-  plots <- VlnPlot(dataset, features = Taylor_panel2, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins2.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel2, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Taylor panel3
@@ -439,10 +482,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot3.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = Taylor_panel3, ncol = 3))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins3.pdf", sep="_"), width = 14, height = 12)
-  plots <- VlnPlot(dataset, features = Taylor_panel3, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins3.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel3, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 3)
+  print(wrap_plots(plots = plots, nrow = 3))
   dev.off()
   
   # Taylor panel4
@@ -453,10 +496,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot4", sep="_"), width = 13, height = 10)
   print(FeaturePlot(dataset, features = Taylor_panel4, ncol = 2))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins4.pdf", sep="_"), width = 13, height = 10)
-  plots <- VlnPlot(dataset, features = Taylor_panel4, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins4.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel4, split.by = "orig.ident", 
                    group.by = "seurat_clusters", pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 2)
+  print(wrap_plots(plots = plots, nrow = 2))
   dev.off()
   
   # Taylor panel5
@@ -467,10 +510,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot5.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = Taylor_panel5, ncol = 3))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins5.pdf", sep="_"), width = 14, height = 12)
-  plots <- VlnPlot(dataset, features = Taylor_panel5, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins5.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel5, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 2)
+  print(wrap_plots(plots = plots, nrow = 2))
   dev.off()
   
   # Taylor panel6
@@ -481,10 +524,10 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   pdf(paste(objname, "Taylor_Panel_FeaturePlot6.pdf", sep="_"), width = 14, height = 12)
   print(FeaturePlot(dataset, features = Taylor_panel6, ncol = 3))
   dev.off()
-  pdf(paste(objname, "Taylor_Panel_SplitViolins6.pdf", sep="_"), width = 14, height = 12)
-  plots <- VlnPlot(dataset, features = Taylor_panel6, split.by = "Condition", 
+  pdf(paste(objname, "Taylor_Panel_SplitViolins6.pdf", sep="_"), width = 18, height = 14)
+  plots <- VlnPlot(dataset, features = Taylor_panel6, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
-  wrap_plots(plots = plots, nrow = 2)
+  print(wrap_plots(plots = plots, nrow = 2))
   dev.off()
   
   DefaultAssay(dataset) <- tempdftassay
