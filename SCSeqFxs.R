@@ -1,13 +1,22 @@
 # Functions for plotting and other single cell sequencing analysis
 # SCSeqFxs.R
 
+
+# get_obj_name
+# plot_markers
+# FindMarkersByConditionEachCluster
+# FindMarkersByCondition
+# CompareClusters
 # plot_huang2021
 # plot_filioDCMarkers
+# Plot_TaylorMarkers
+
 
 # get the name of an object
 get_obj_name <- function(x) {
   print(as.character(substitute(x)))
 }
+
 
 # General use function to make plots with whatever set of markers you want
 # Works best with 4 or 6 markers, but can change ncol to fit others better. 
@@ -55,6 +64,7 @@ plot_markers <- function(dataset, objname, marker_panel) {
   DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd)
 }
+
 
 # For all clusters, find the DE genes between conditions
 # Example, what's different between tumor vs. egressed in cluster 3? (for each cluster)
@@ -115,16 +125,15 @@ FindMarkersByConditionEachCluster <- function(dataset, objname) {
     }
     # print('head(orig.ident)')
     # print(head(dataset$orig.ident, 30))
-    FindMarkersByCondition(cell_subset, obj_name(dataset), ClusterID)
-    
-    DefaultAssay(dataset) <- tempdftassay
+    FindMarkersByCondition(cell_subset, obj_name, ClusterID)
   }
-  print('resetting to old wd: ')
-  print(oldwd)
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd)
 }
 
-# For one clusters, find the DE genes between conditions
+
+# For one cluster, find the DE genes between conditions
 # Example, what's different between tumor vs. egressed in cluster 3?
 # data should already be subset to only include the cluster of interest. 
 FindMarkersByCondition <- function(dataset, objname, ClusterID) {
@@ -140,7 +149,69 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID) {
   write.table(bot50, sep="\t", file=paste(clustername, "top50DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   write.table(row.names(top50), sep="\t", file=paste(clustername, "Names_top50UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   write.table(row.names(bot50), sep="\t", file=paste(clustername, "Names_top50DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  
+  # Heatmaps of the above markers
+  pdf(paste(clustername, "top50UP_MarkersByCondition.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  pdf(paste(clustername, "top50DOWN_MarkersByCondition.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
 }
+
+
+# Finds the DE genes between two clusters, outputs tables and heatmaps. 
+# Example, what's different between clusters 9 and 1?
+# ClusterID1 and ClusterID2 should be strings containing the cluster IDs
+# Example call:
+# compare_clusters(combined.DCs, get_obj_name(combined.DCs), "0", "1")
+compare_clusters <- function(dataset, objname, ClusterID1, ClusterID2) {
+  # create subdirectory to put the outputs into
+  comparison <- paste(ClusterID1, ClusterID2, sep="_vs_")
+  oldwd <- getwd()
+  name1 <- paste(comparison, objname, sep="_")
+  foldername <- paste(name1, "DEMarkers", sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  setwd(file.path(filenames))
+  
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "integrated"
+  
+  markers <- FindMarkers(dataset, ident.1 = ClusterID1, ident.2 = ClusterID2, min.pct = 0.25, verbose = FALSE)
+  # save the results to a text file
+  write.table(markers, sep="\t", file=paste(comparison, "Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(markers['avg_log2FC'], sep="\t", file=paste(comparison, "Markers&LFC.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
+  # top 50 most up- and down- regulated genes
+  top50 <- markers %>% top_n(n = 50, wt = avg_log2FC)
+  bot50 <- markers %>% top_n(n = -50, wt = avg_log2FC)
+  write.table(top50, sep="\t", file=paste(comparison, "top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(bot50, sep="\t", file=paste(comparison, "top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(top50), sep="\t", file=paste(comparison, "Names_top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(bot50), sep="\t", file=paste(comparison, "Names_top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  
+  cells_compared <- subset(dataset, seurat_clusters == ClusterID1 | seurat_clusters == ClusterID2)
+  # Heatmaps of the above markers
+  # show all clusters but only the DE genes between the two: 
+  pdf(paste(comparison, "top50UP_Markers_AllClusters.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  pdf(paste(comparison, "top50DOWN_Markers_AllClusters.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  # show only the two clusters compared
+  pdf(paste(comparison, "top50UP_Markers.pdf", sep="_"), height = 12)
+  print(DoHeatmap(cells_compared, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  pdf(paste(comparison, "top50DOWN_Markers.pdf", sep="_"), height = 12)
+  print(DoHeatmap(cells_compared, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+}
+
 
 # Markers from Huang et al 2021 - Innervated Lymph Nodes ------------------
 plot_huang2021 <- function(dataset, objname) {
@@ -417,6 +488,7 @@ plot_FilioDCMarkers <- function(dataset, objname) {
   DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd)
 }
+
 
 # ------------------------------------------------
 # plot Taylor's CD8 T-cell Markers
