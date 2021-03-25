@@ -39,23 +39,23 @@ plot_markers <- function(dataset, objname, marker_panel) {
   # Make plots
   # plot UMAPs for context
   pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
-  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
   dev.off()
   # split by orig.ident
   pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
-  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
   dev.off()
   
   # Violin plots
-  pdf(paste(filenames, "_Violins.pdf", sep=""), width = 10, height = 10)
-  print(VlnPlot(dataset, features = marker_panel, pt.size = 0, ncol = 2))
+  pdf(paste(filenames, "_Violins.pdf", sep=""), width = 12, height = 10)
+  print(VlnPlot(dataset, features = marker_panel, pt.size = 0, ncol = 3))
   dev.off()
   # Feature plots
-  pdf(paste(filenames, "_FeaturePlot.pdf", sep=""), width = 10, height = 10)
-  print(FeaturePlot(dataset, features = marker_panel, ncol = 2))
+  pdf(paste(filenames, "_FeaturePlot.pdf", sep=""), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = marker_panel, ncol = 3))
   dev.off()
   # Violin plots split by condition
-  pdf(paste(filenames, "_SplitViolins.pdf", sep=""), width = 13, height = 10)
+  pdf(paste(filenames, "_SplitViolins.pdf", sep=""), width = 16, height = 10)
   plots <- VlnPlot(dataset, features = marker_panel, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
   print(wrap_plots(plots = plots, nrow = 3))
@@ -136,27 +136,52 @@ FindMarkersByConditionEachCluster <- function(dataset, objname) {
 # For one cluster, find the DE genes between conditions
 # Example, what's different between tumor vs. egressed in cluster 3?
 # data should already be subset to only include the cluster of interest. 
-FindMarkersByCondition <- function(dataset, objname, ClusterID) {
-  markers <- FindMarkers(dataset, ident.1 = "egressed", ident.2 = "tumor", min.pct = 0.25, verbose = FALSE)
+FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 50) {
+  # create subdirectory to put the outputs into
+  oldwd <- getwd()
+  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
+  gene_amount <- paste("Top", num_genes, sep="") # Top50
+  clusterandgene <- paste(clustername, gene_amount, sep="_") # Cluster0_Top50
+  foldername <- paste(clustername, objname, sep="_") # Cluster0__Top50_combined.DCs
+  filenames <- paste(foldername, Sys.time(), sep="_") # Cluster0__Top50_combined.DCs_datetime...
+  dir.create(file.path(filenames))
+  setwd(file.path(filenames))
+  
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "integrated"
+  
+  
+  # make a list of the different conditions, or "orig.ident"s
+  cond_list <- unique(dataset$orig.ident)
+  # make a new column called celltype to store the old cluster identities
+  dataset$celltype <- Idents(dataset)
+  # Fill the identities column with the values in the "Condition" column ("egressed" or "tumor")
+  Idents(dataset) <- "orig.ident"
+  # find markers between the two conditions
+  markers <- FindMarkers(dataset, ident.1 = cond_list[1], ident.2 = cond_list[2], min.pct = 0.25, verbose = FALSE)
   # save the results to a text file
   clustername <- paste("Cluster", ClusterID, sep="")
   write.table(markers, sep="\t", file=paste(clustername, "MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   write.table(markers['avg_log2FC'], sep="\t", file=paste(clustername, "Markers&LFCByCondition.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
   # top 50 most up- and down- regulated genes
-  top50 <- markers %>% top_n(n = 50, wt = avg_log2FC)
-  bot50 <- markers %>% top_n(n = -50, wt = avg_log2FC)
-  write.table(top50, sep="\t", file=paste(clustername, "top50UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(bot50, sep="\t", file=paste(clustername, "top50DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(top50), sep="\t", file=paste(clustername, "Names_top50UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(bot50), sep="\t", file=paste(clustername, "Names_top50DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  top_genes <- markers %>% top_n(n = num_genes, wt = avg_log2FC)
+  bot_genes <- markers %>% top_n(n = (-1)*num_genes, wt = avg_log2FC)
+  write.table(top_genes, sep="\t", file=paste(clusterandgene, "UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(bot_genes, sep="\t", file=paste(clusterandgene, "DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(top_genes), sep="\t", file=paste(clusterandgene, "UP_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(bot_genes), sep="\t", file=paste(clusterandgene, "DOWN_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   
   # Heatmaps of the above markers
-  pdf(paste(clustername, "top50UP_MarkersByCondition.pdf", sep="_"), height = 12)
-  print(DoHeatmap(dataset, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  pdf(paste(clusterandgene, "UP_MarkersByCondition.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(top_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
-  pdf(paste(clustername, "top50DOWN_MarkersByCondition.pdf", sep="_"), height = 12)
-  print(DoHeatmap(dataset, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  pdf(paste(clusterandgene, "DOWN_MarkersByCondition.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(bot_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
+  
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
 }
 
 
@@ -606,3 +631,103 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
   setwd(oldwd)
 }
 
+
+# ------------------------------------------------
+# plot the Rgs (1-21) and Grk (1-7) genes
+# These play a role in activating/deactivating CXCR4
+# CXCR4 is a g-protein coupled receptor
+# These can modify it from inside the cell and affect signaling,
+# thereby altering cell egress via CXCR4 / CXCL12 activity. 
+plot_Rgs_Grk_Markers <- function(dataset, objname) {
+  # create subdirectory to put the outputs into
+  foldername <- paste("Rgs_Grk", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  
+  # Define panels
+  Rgs_panel1 <- c("Rgs1", "Rgs2", "Rgs3", "Rgs4", "Rgs5", "Rgs6", "Rgs7", "Rgs8", "Rgs9")
+  Rgs_panel2 <- c("Rgs10", "Rgs11", "Rgs12", "Rgs13", "Rgs14", "Rgs15")
+  Rgs_panel3 <- c("Rgs16", "Rgs17", "Rgs18", "Rgs19", "Rgs20", "Rgs21")
+  Grk_panel <- c("Grk1", "Grk2", "Grk3", "Grk4", "Grk5", "Grk6", "Grk7")
+  
+  # Rgs_panel1
+  # Violin plots
+  pdf(paste(objname, "Rgs_Violins1.pdf", sep=""), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Rgs_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Rgs_FeaturePlot1.pdf", sep=""), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Rgs_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Rgs_SplitViolins1.pdf", sep=""), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Rgs_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Rgs_panel2
+  # Violin plots
+  pdf(paste(objname, "Rgs_Violins2.pdf", sep=""), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Rgs_panel2, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Rgs_FeaturePlot2.pdf", sep=""), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Rgs_panel2, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Rgs_SplitViolins2.pdf", sep=""), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Rgs_panel2, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Rgs_panel3
+  # Violin plots
+  pdf(paste(objname, "Rgs_Violins3.pdf", sep=""), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Rgs_panel3, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Rgs_FeaturePlot3.pdf", sep=""), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Rgs_panel3, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Rgs_SplitViolins3.pdf", sep=""), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Rgs_panel3, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Grk_panel
+  # Violin plots
+  pdf(paste(objname, "Grk_Violins1.pdf", sep=""), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Grk_panel, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Grk_FeaturePlot1.pdf", sep=""), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Grk_panel, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Grk_SplitViolins1.pdf", sep=""), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Grk_panel, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+}
