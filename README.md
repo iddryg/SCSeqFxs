@@ -51,7 +51,7 @@ Runs several of the functions below to streamline cluster annotation and a gener
 - plot_TaylorCD8Markers
 - plot_Rgs_Grk_Markers
 - plot_EgressMarkers
-- 
+
 ## get_obj_name(x)
 Gets the name of an object. You can use this to provide the "objname" parameter for most of the other functions. 
 Example:
