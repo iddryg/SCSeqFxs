@@ -2,7 +2,6 @@
 Some functions for streamlined single cell sequencing analysis. Uses seurat objects and functions. 
 Written by Ian Dryg for use in Amanda Lund's lab (www.thelundlab.com) in March 2021. 
 
-# Documentation
 ## To use these functions:
 1. Download SCSeqFxs.R and move to whatever folder you want. 
 2. Install the libraries listed in the Dependencies section below, and load them in an R script. Example: library(Seurat)
@@ -13,7 +12,7 @@ source('/Users/username/Documents/R/SCSeqFxs.R')
 3. Then you can use any of the functions listed below in your script. 
 
 ## Dependencies: 
-R Studio recommended (https://www.rstudio.com/)
+- R Studio recommended (https://www.rstudio.com/)
 Requires the following libraries:
 - Seurat: https://satijalab.org/seurat/articles/install.html
 - cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html
