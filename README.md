@@ -20,9 +20,10 @@ Seurat
 2. plot_markers(dataset, objname, marker_panel)
 3. FindMarkersByConditionEachCluster(dataset, objname)
 4. FindMarkersByCondition(dataset, objname, ClusterID)
-5. plot_huang2021(dataset, objname)
-6. plot_FilioDCMarkers(datset, objname)
-7. plot_TaylorCD8Markers(dataset, objname)
+5. compare_clusters(datset, objname, ClusterID1, ClusterID2)
+6. plot_huang2021(dataset, objname)
+7. plot_FilioDCMarkers(datset, objname)
+8. plot_TaylorCD8Markers(dataset, objname)
 
 # Function Descriptions
 ## get_obj_name(x)
@@ -53,7 +54,15 @@ Finds the top differentially expressed genes between conditions within a given c
 For example, "What's differentially expressed between tumor vs. egressed populations in cluster 3?"
 It will save text files with the top 50 up- and down- regulated genes between conditions. Additionally, ALL DE genes will be saved as a text file. Also, a .rnk file will be saved with only the top 50 up- and down- regulated genes and their L2FC values to use for GSEA. 
 ClusterID is assumed to be the value in seurat_clusters, but is only used for file names. 
+Also plots heatmaps with the top 50 up and down genes. 
 This function is used by FindMarkersByCondtitionEachCluster(). 
+
+## compare_clusters(dataset, objname, ClusterID1, ClusterID2)
+Finds the top differentially expressed genes between two clusters. 
+For example, "What's differentially expressed between clusters 9 and 1?"
+It will save text files with the top 50 up- and down- regulated genes between those clusters. Additionally, All DE genes will be saved as a text file and a .rnk file for GSEA. Also plots heatmaps with the top 50 up and down genes. 
+Example call: 
+compare_clusters(combined.DCs, get_obj_name(combined.DCs), "9", "1")
 
 ## plot_huang2021(dataset, objname)
 Makes a bunch of plots with all of the markers and subpopulations defined in Huang et al 2021, Figure 6 (innervated lymph node paper). 

@@ -67,15 +67,20 @@ plot_markers <- function(dataset, objname, marker_panel) {
 
 
 # For all clusters, find the DE genes between conditions
+# Note: Now includes GSEA! Does this for each cluster. 
 # Example, what's different between tumor vs. egressed in cluster 3? (for each cluster)
 # dataset is the seurat object
 # objname is obj_name(dataset)
 # example function call:
 # FindMarkersByConditionEachCluster(combined.DCs, get_obj_name(combined.DCs))
-FindMarkersByConditionEachCluster <- function(dataset, objname) {
+FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) {
   # create subdirectory to put the outputs into
   oldwd <- getwd()
-  foldername <- paste("MarkersByCondition", objname, sep="_")
+  string1 <- "MarkersByCondition"
+  if (runGsea == TRUE) {
+    string1 <- "GSEA_&_DE_ByCondition"
+  }
+  foldername <- paste(string1, objname, sep="_")
   filenames <- paste(foldername, Sys.time(), sep="_")
   dir.create(file.path(filenames))
   setwd(file.path(filenames))
@@ -102,6 +107,15 @@ FindMarkersByConditionEachCluster <- function(dataset, objname) {
   # ClusterList <- sort(c(unique(Idents(dataset))))-1
   # save a text file describing the conditions compared
   write.table(ConditionList[1:2], sep="\t", file="Condition1vsCondition2.txt", quote = FALSE, row.names = TRUE)
+  
+  # install organism library for GSEA
+  if (runGsea == TRUE) {
+    # SET THE DESIRED ORGANISM HERE
+    # organism = "org.Mm.eg.db"
+    BiocManager::install(organism, character.only = TRUE)
+    library(organism, character.only = TRUE)
+  }
+  
   for (ClusterID in ClusterList) {
     #FindMarkersByCondition(subset(dataset, Idents(dataset)==ClusterID), obj_name(dataset), ClusterID)
     # ^error, subset function doesn't really work programmatically at this point. Here's a workaround: 
@@ -125,7 +139,12 @@ FindMarkersByConditionEachCluster <- function(dataset, objname) {
     }
     # print('head(orig.ident)')
     # print(head(dataset$orig.ident, 30))
-    FindMarkersByCondition(cell_subset, obj_name, ClusterID)
+    
+    # If we're running the doGSEA function, FindMarkersByCondition will be run anyway. 
+    if (runGsea == FALSE) {
+      FindMarkersByCondition(cell_subset, objname, ClusterID)
+    }
+    doGSEA(dataset, objname, ClusterID)
   }
   # Reset to original working directory and default array
   DefaultAssay(dataset) <- tempdftassay
@@ -136,7 +155,9 @@ FindMarkersByConditionEachCluster <- function(dataset, objname) {
 # For one cluster, find the DE genes between conditions
 # Example, what's different between tumor vs. egressed in cluster 3?
 # data should already be subset to only include the cluster of interest. 
-FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 50) {
+# Can define the number of genes to include in the "top" and "bot" comparisons
+# If return_table is TRUE, it returns the results table, which can be used for GSEA and other things. 
+FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 100, return_table = FALSE) {
   # create subdirectory to put the outputs into
   oldwd <- getwd()
   clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
@@ -159,6 +180,8 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 50) 
   Idents(dataset) <- "orig.ident"
   # find markers between the two conditions
   markers <- FindMarkers(dataset, ident.1 = cond_list[1], ident.2 = cond_list[2], min.pct = 0.25, verbose = FALSE)
+  # save a text file describing the conditions compared
+  write.table(cond_list[1:2], sep="\t", file="Condition1vsCondition2.txt", quote = FALSE, row.names = TRUE)
   # save the results to a text file
   clustername <- paste("Cluster", ClusterID, sep="")
   write.table(markers, sep="\t", file=paste(clustername, "MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
@@ -182,6 +205,11 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 50) 
   # Reset to original working directory and default array
   DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd)
+  
+  # Return the results table if return_table is TRUE
+  if (return_table == TRUE) {
+    return(markers)
+  }
 }
 
 
@@ -387,10 +415,10 @@ plot_huang2021 <- function(dataset, objname) {
   
   # DC5 Cell panel
   DC5_panel1 <- c("Axl", "Ptprc", "Csf1r", "", "", "", "", "")
-  pdf(paste(obj_name(dataset), "DC5_Panel_Violins1.pdf", sep="_"), width = 10, height = 10)
+  pdf(paste(objname, "DC5_Panel_Violins1.pdf", sep="_"), width = 10, height = 10)
   print(VlnPlot(dataset, features = DC5_panel1, pt.size = 0, ncol = 2))
   dev.off()
-  pdf(paste(obj_name(dataset), "DC5_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
+  pdf(paste(objname, "DC5_Panel_FeaturePlot1.pdf", sep="_"), width = 10, height = 10)
   print(FeaturePlot(dataset, features = DC5_panel1, ncol = 2))
   dev.off()
   pdf(paste(objname, "DC5_Panel_SplitViolins1.pdf", sep="_"), width = 18, height = 14)
@@ -640,7 +668,7 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
 # thereby altering cell egress via CXCR4 / CXCL12 activity. 
 plot_Rgs_Grk_Markers <- function(dataset, objname) {
   # create subdirectory to put the outputs into
-  foldername <- paste("Rgs_Grk", objname, sep="_")
+  foldername <- paste("Rgs_Grk_Markers", objname, sep="_")
   filenames <- paste(foldername, Sys.time(), sep="_")
   dir.create(file.path(filenames))
   oldwd <- getwd()
@@ -730,4 +758,531 @@ plot_Rgs_Grk_Markers <- function(dataset, objname) {
   
   DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd)
+}
+
+
+# ------------------------------------------------
+# explore Egress Markers for Maria's paper
+# Exploring and defining the CD8+ clusters ------------------------------------
+# CXCR4, its ligand CXCL12, the decoy receptor Ackr3
+# Intracellular regulators of CXCR4, the Rgs genes
+# Cell cycle/proliferation marker Mki67
+# dataset is the dataset, objname is the name of the seurat object
+explore_EgressMarkers <- function(dataset, objname) {
+  # create subdirectory to put the outputs into
+  foldername <- paste("ExploreEgressMarkers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  
+  # Define panels
+  Egress_panel1 <- c("Cxcr4", "Cxcl12", "Ackr3", "Rgs1", "Rgs2", "Rgs3", "Rgs10", "Rgs16")
+  Egress_panel2 <- c("Ccr7", "S1pr1", "Cd69", "", "", "", "", "")
+  Exhaustion_panel1 <- c("Pdcd1", "Havcr2", "Lag3", "Tox", "Mki67", "H2-Ab1")
+  # Thymic_Egress <- c("Sphk1", "Sphk2", "Spns2", "Sp1", "Lpp3", "LTBR", "MST1", "MST2", "Coro1a")
+  Thymic_Egress <- c("Sphk1", "Sphk2", "Spns2", "Sp1", "LPP3", "Ltbr", "Mst1", "Stk3", "Coro1a")
+  # Stk3 is Mst2
+  # Egress_modulators are from James, Jenkinson, and Anderson 2018, it's thymic egress but still checking
+  # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6174998/
+  # Taylor CD8+ T-cell subtype panels -------------------------------------------
+  # Vps37b, Icos, Tcf7, S1pr1, Cxcr6, Itgae, Jun, Fos, Nr4a3, Klf2, Ifng, Cd69
+  # Gzmb and Sell
+  # Eomes, Tbx21, Runx3, Id2, Id3, Tox, Il7r, Klrg1, Ccr7, Pdcd1, Havcr2, and Lag3
+  
+  # Egress Panel1
+  # Violin plots
+  pdf(paste(objname, "Egress_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Egress_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Egress_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Egress_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Egress_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Egress_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Egress Panel1
+  # Violin plots
+  pdf(paste(objname, "Egress_Violins2.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Egress_panel2, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Egress_FeaturePlot2.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Egress_panel2, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Egress_SplitViolins2.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Egress_panel2, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Exhaustion Panel1
+  # Violin plots
+  pdf(paste(objname, "Exhaustion_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Exhaustion_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Exhaustion_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Exhaustion_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Exhaution_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Exhaustion_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Thymic Egress Panel1
+  # Violin plots
+  pdf(paste(objname, "ThymicEgress_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Thymic_Egress, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "ThymicEgress_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Thymic_Egress, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "ThymicEgress_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Thymic_Egress, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+
+}
+
+# ------------------------------------------------
+# plot Egress Markers for Maria's paper
+# Making more legit plots with select markers
+# Exploring and defining the CD8+ clusters ------------------------------------
+# CXCR4, its ligand CXCL12, the decoy receptor Ackr3
+# Intracellular regulators of CXCR4, the Rgs genes
+# Cell cycle/proliferation marker Mki67
+# dataset is the dataset, objname is the name of the seurat object
+plot_EgressMarkers <- function(dataset, objname) {
+  # create subdirectory to put the outputs into
+  foldername <- paste("PlotEgressMarkers", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # plot UMAPs for context
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  
+  # Define panels
+  Main_panel1 <- c("S1pr1", "Rgs3", "Pdcd1", "Rgs1", "Rgs2", "Havcr2", "Rgs10", "Rgs16", "Lag3")
+  Egress_panel1 <- c("Cxcr4", "Cxcl12", "Ackr3", "Ccr7", "S1pr1", "Sp1", "Rgs1", "Rgs2", "Rgs3", "Rgs10", "Rgs16")
+  Exhaustion_panel1 <- c("Pdcd1", "Havcr2", "Lag3", "Tox", "Mki67", "H2-Ab1")
+  Taylor_panel1 <- c("Tcf7", "Cxcr6", "Ifng", "Gzmb", "Sell", "Eomes", "Il7r", "Tbx21", "Id2")
+  # Taylor CD8+ T-cell subtype panels -------------------------------------------
+  # Vps37b, Icos, Tcf7, S1pr1, Cxcr6, Itgae, Jun, Fos, Nr4a3, Klf2, Ifng, Cd69
+  # Gzmb and Sell
+  # Eomes, Tbx21, Runx3, Id2, Id3, Tox, Il7r, Klrg1, Ccr7, Pdcd1, Havcr2, and Lag3
+  
+  # Main Panel1
+  # Violin plots
+  pdf(paste(objname, "Main_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Main_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Main_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Main_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Main_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Main_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Egress Panel1
+  # Violin plots
+  pdf(paste(objname, "Egress_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Egress_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Egress_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Egress_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Egress_SplitViolins1.pdf", sep="_"), width = 21, height = 13)
+  plots <- VlnPlot(dataset, features = Egress_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 4))
+  dev.off()
+  
+  # Exhaustion Panel1
+  # Violin plots
+  pdf(paste(objname, "Exhaustion_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Exhaustion_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Exhaustion_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Exhaustion_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Exhaution_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Exhaustion_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  # Taylor Panel1
+  # Violin plots
+  pdf(paste(objname, "Taylor_Violins1.pdf", sep="_"), width = 12, height = 10)
+  print(VlnPlot(dataset, features = Taylor_panel1, pt.size = 0, ncol = 3))
+  dev.off()
+  # Feature plots
+  pdf(paste(objname, "Taylor_FeaturePlot1.pdf", sep="_"), width = 12, height = 10)
+  print(FeaturePlot(dataset, features = Taylor_panel1, ncol = 3))
+  dev.off()
+  # Violin plots split by condition
+  pdf(paste(objname, "Taylor_SplitViolins1.pdf", sep="_"), width = 20, height = 10)
+  plots <- VlnPlot(dataset, features = Taylor_panel1, split.by = "orig.ident", 
+                   pt.size = 0, combine = FALSE)
+  print(wrap_plots(plots = plots, nrow = 3))
+  dev.off()
+  
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+  
+}
+
+# doPseudotime
+doPseudotime <- function(dataset, objname, partition_option = FALSE) {
+  # create subdirectory to put the outputs into
+  foldername <- paste("doPseudotime", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  # temporarily change the default assay during the use of this function
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # Building trajectories with Monocle3
+  cds <- as.cell_data_set(dataset)
+  cds <- cluster_cells(cds = cds, reduction_method = "UMAP")
+  # if the user defines partition_option = TRUE, it will separate into the two partition (as long as they're there)
+  cds <- learn_graph(cds, use_partition = partition_option)
+
+  ## Calculate size factors using built-in function in monocle3
+  cds <- estimate_size_factors(cds)
+  
+  ## Add gene names into CDS
+  cds@rowRanges@elementMetadata@listData[["gene_short_name"]] <- rownames(dataset[["RNA"]])
+  
+  # This step opens a pop-up window for user input. 
+  # The user has to pick a starting point for pseudotime. 
+  # order cells
+  cds <- order_cells(cds, reduction_method = "UMAP")
+  
+  # plot trajectories colored by pseudotime
+  pseudotime_plt <- plot_cells(
+    cds = cds,
+    color_cells_by = "pseudotime",
+    show_trajectory_graph = TRUE,
+    cell_size = 1.25,
+    group_label_size = 4,
+    graph_label_size = 8,
+    trajectory_graph_segment_size = 1.75
+  )
+  
+  # Plot UMAPs for context
+  umap_plt <- DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE)
+  umap_by_cond <- DimPlot(dataset, reduction = "umap", group.by = "Condition")
+  
+  pdf(paste(objname, "UMAPs.pdf", sep="_"), width=14)
+  print(umap_plt + labs(title = "Clusters") + theme(plot.title = element_text(hjust = 0.5)) + 
+    umap_by_cond + labs(title = "By Condition"))
+  dev.off()
+  
+  pdf(paste(objname, "UMAP.pdf", sep="_"), width=10, height = 10)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE))
+  dev.off()
+  
+  # Plot pseudotime by itself
+  pdf(paste(objname, "pseudotime.pdf", sep="_"), width=12, height=12)
+  print(pseudotime_plt + labs(title = "Pseudotime") + theme(plot.title = element_text(hjust = 0.5)))
+  dev.off()
+  
+  # try a complex plotting layout with pseudotime, general UMAP, and UMAP split by condition: 
+  lay1 <- rbind(c(1,1,2),
+               c(1,1,3))
+  
+  pdf(paste(objname, "pseudotime+UMAPs.pdf", sep="_"), width=21, height=14)
+  grid.arrange(pseudotime_plt + labs(title = "Pseudotime") + theme(plot.title = element_text(hjust = 0.5)), 
+               umap_plt + labs(title = "Clusters") + theme(plot.title = element_text(hjust = 0.5)),  
+               umap_by_cond + labs(title = "By Condition"), 
+               layout_matrix = lay1)
+  dev.off()
+  
+  # Need to add the rest of the Monocle3 functionality next once I learn it. 
+  
+  # return to defaults
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+}
+  
+# doGSEA
+# For mouse, organism is "org.Mm.eg.db"
+# numsets is the number of GSEA plots to make (for the top up and down most enriched sets)
+# num_genesets is the number of gene sets to include in the table output. 
+doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db", numsets = 20, num_genesets = 200, installOrganism = FALSE) {
+  # GSEA with ClusterProfiler
+  # https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
+  # create subdirectory to put the outputs into
+  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
+  folderstring <- paste(clustername, "doGSEA", sep = "_") # Cluster0_doGSEA
+  foldername <- paste(folderstring, objname, sep="_") # Cluster0_doGSEA_combined.CD8s
+  filenames <- paste(foldername, Sys.time(), sep="_") # Cluster0_doGSEA_combined.CD8s_datetime
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  # temporarily change the default assay during the use of this function
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # make a list of the different conditions, or "orig.ident"s
+  cond_list <- unique(dataset$orig.ident)
+  # make a string storing the comparison made, to include in file names later
+  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
+  comparison_str <- paste(cond_list[1], cond_list[2], sep = "_vs_") # Egress_vs_Tumor
+  comparison_str2 <- paste(comparison_str, objname, sep = "_") # Egress_vs_Tumor_combined.CD8s
+  filename_str <- paste(clustername, comparison_str2, sep = "_") # Cluster0_Egress_vs_Tumor_combined.CD8s
+  
+  if (installOrganism == TRUE) {
+    # SET THE DESIRED ORGANISM HERE
+    # organism = "org.Mm.eg.db"
+    BiocManager::install(organism, character.only = TRUE)
+    library(organism, character.only = TRUE)
+  }
+  
+  # get the DE gene table using my custom function (essentially uses seurat's FindMarkers)
+  DE.genes.by.condition <- FindMarkersByCondition(dataset, objname, ClusterID, num_genes = 100, return_table = TRUE)
+  # get the log2 fold change values
+  ranked.list.prep <- DE.genes.by.condition$avg_log2FC
+  # reconnect with the gene names
+  names(ranked.list.prep) <- row.names(DE.genes.by.condition)
+  # omit any NA values
+  ranked.list <- na.omit(ranked.list.prep)
+  # sort the list in decreasing order (required for clusterProfiler)
+  ranked.list = sort(ranked.list, decreasing = TRUE)
+  
+  # check which options are available...
+  # keytypes(org.Mm.eg.db)
+  # For Lund Lab 2021, our genes are in "SYMBOL"
+  
+  # Run GSEA... 
+  # ont - one of “BP”, “MF”, “CC” or “ALL”
+  # nPerm - the higher the number of permutations you set, the more accurate your result will, but the longer the analysis will take.
+  # note: I got errors when using nPerm. They say it's not recommended to use it anymore. So I took it out. 
+  # used to be nPerm = 10000
+  # minGSSize - minimum number of genes in set (gene sets with lower than this many genes in your dataset will be ignored).
+  # maxGSSize - maximum number of genes in set (gene sets with greater than this many genes in your dataset will be ignored).
+  # pvalueCutoff - pvalue Cutoff.
+  # pAdjustMethod - one of “holm”, “hochberg”, “hommel”, “bonferroni”, “BH”, “BY”, “fdr”, “none”
+  
+  gse <- gseGO(geneList=ranked.list, 
+               ont ="ALL", 
+               keyType = "SYMBOL", 
+               minGSSize = 3, 
+               maxGSSize = 1000, 
+               pvalueCutoff = 0.05, 
+               verbose = TRUE, 
+               OrgDb = org.Mm.eg.db, 
+               pAdjustMethod = "none")
+  
+  # outputs
+  # dotplot
+  require(DOSE)
+  pdf(paste(filename_str, "GSEA_dotplot.pdf", sep="_"), height=16, width=14)
+  print(dotplot(gse, showCategory=30, split=".sign") + facet_grid(.~.sign))
+  dev.off()
+  
+  # category Netplot
+  # categorySize can be either 'pvalue' or 'geneNum'
+  pdf(paste(filename_str, "GSEA_netplot.pdf", sep="_"), height=16, width=14)
+  print(cnetplot(gse, categorySize="pvalue", foldChange=ranked.list, showCategory = 3))
+  dev.off()
+  
+  # ridgeplot
+  pdf(paste(filename_str, "GSEA_netplot.pdf", sep="_"), height=16, width=14)
+  print(ridgeplot(gse) + labs(x = "enrichment distribution"))
+  dev.off()
+  
+  # Filter the data to save tables and make GSEA plots for the highest NES & p-values
+  # create a temp variable to experiment with
+  gse_sorted <- gse
+  # order it on NES & p-value
+  hi_ndx <- order(-gse_sorted$NES, gse_sorted$pvalue)
+  lo_ndx <- order(gse_sorted$NES, gse_sorted$pvalue)
+  gse_sorted_enrichment_hi <- gse_sorted[hi_ndx,]
+  gse_sorted_enrichment_lo <- gse_sorted[lo_ndx,]
+  # Filter out genesets with 5 or fewer genes
+  gse_sorted_enrichment_hi <- subset(gse_sorted_enrichment_hi, gse_sorted_enrichment_hi$setSize > 5)
+  gse_sorted_enrichment_lo <- subset(gse_sorted_enrichment_lo, gse_sorted_enrichment_lo$setSize > 5)
+  # these should still be sorted, so good to go for next steps. I think. 
+  
+  # Save txt files of the sorted data to look at
+  # top 50 most up- and down- regulated genes
+  # Only include ones with p-values less than 0.1
+  up_genesets <- subset(gse_sorted_enrichment_hi, pvalue <= 0.1)
+  down_genesets <- subset(gse_sorted_enrichment_lo, pvalue <= 0.1)
+  write.table(up_genesets, sep="\t", file=paste(filename_str, "UP_GSEA.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(down_genesets, sep="\t", file=paste(filename_str, "DOWN_GSEA.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(up_genesets$description, sep="\t", file=paste(filename_str, "UP_Names_GSEA.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(down_genesets$description, sep="\t", file=paste(filename_str, "DOWN_Names_GSEA.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  
+  # GSEA Plots
+  # UP-regulated genesets
+  # create subdirectory to put the GSEA plots into
+  # clustername # Cluster0
+  
+  gsea_folder <- paste(filenames,"upGSEAPlots", sep = "_") # Cluster0_doGSEA_combined.CD8s_datetime
+  dir.create(file.path(gsea_folder))
+  maindir <- getwd()
+  setwd(file.path(gsea_folder))
+  
+  # cycle through the top N=20 and plot
+  ct <- 1
+  # cycles through every geneset ID in the sorted dataframe
+  for (geneset_id in gse_sorted_enrichment_hi$ID[1:numsets]) {
+    # reformat file naming for each cycle
+    gsea_filename_str <- paste(filename_str, ct, sep="_")
+    # plot and save gsea enrichment plot for up-regulated genes
+    # Create an annotation for the NES and p-value
+    grob1 <- grobTree(textGrob(paste("NES: ", trimws(format(round(gse_sorted_enrichment_hi$NES[ct],5), nsmall=5))), x=0.7,  y=0.95, hjust=0,
+                              gp=gpar(col="red", fontsize=13)))
+    grob2 <- grobTree(textGrob(paste("p-value: ", trimws(format(round(gse_sorted_enrichment_hi$pvalue[ct],5), nsmall=5))), x=0.7,  y=0.90, hjust=0,
+                              gp=gpar(col="red", fontsize=13)))
+    gplt <- enrichplot::gseaplot(gse, geneSetID = geneset_id, by = "runningScore", title = gse_sorted_enrichment_hi$Description[ct])
+    pdf(paste(gsea_filename_str, "GSEA_UP.pdf", sep="_"))
+    #print(enrichplot::gseaplot(gse, geneSetID = geneset_id, by = "runningScore", title = gse_sorted_enrichment_hi$Description[ct]))
+    print(gplt + annotation_custom(grob1) + annotation_custom(grob2))
+    dev.off()
+    # plot and save gsea enrichment plot for down-regulated genes
+    #pdf(paste(gsea_filename_str, "GSEA_DOWN.pdf", sep="_"))
+    # print(gseaplot(gse_sorted_enrichment_lo, by = "all", title = gse_sorted_enrichment_lo$Description[ct], geneSetID = ct))
+    # gseaplot(gse_sorted_enrichment_lo, by = "all", title = gse_sorted_enrichment_lo$Description[ct], geneSetID = ct)
+    #enrichplot::gseaplot(gse_sorted_enrichment_lo, geneSetID = ct, by = "runningScore", title = gse_sorted_enrichment_lo$Description[ct])
+    #dev.off()
+    ct <- ct + 1
+  }
+  
+  # DOWN-retulated genesets...
+  # return to main directory
+  setwd(maindir) # come out of gsea plots folder
+  # DOWN-regulated genes
+  # create subdirectory to put the GSEA plots into
+  gsea_folder <- paste(filenames,"downGSEAPlots", sep = "_")
+  dir.create(file.path(gsea_folder))
+  setwd(file.path(gsea_folder))
+  
+  # cycle through the top N=20 and plot
+  ct <- 1
+  # cycles through every geneset ID in the sorted dataframe
+  for (geneset_id in gse_sorted_enrichment_lo$ID[1:numsets]) {
+    # reformat file naming for each cycle
+    gsea_filename_str <- paste(filename_str, ct, sep="_")
+    # plot and save gsea enrichment plot for up-regulated genes
+    # Create an annotation for the NES and p-value
+    # format(round(x, k), nsmall = k) # cuts x to only show k decimal places
+    grob1 <- grobTree(textGrob(paste("NES: ", trimws(format(round(gse_sorted_enrichment_lo$NES[ct],3), nsmall=3))), x=0.7,  y=0.95, hjust=0,
+                               gp=gpar(col="red", fontsize=13)))
+    grob2 <- grobTree(textGrob(paste("p-value: ", trimws(format(round(gse_sorted_enrichment_lo$pvalue[ct],3), nsmall=3))), x=0.7,  y=0.90, hjust=0,
+                               gp=gpar(col="red", fontsize=13)))
+    gplt <- enrichplot::gseaplot(gse, geneSetID = geneset_id, by = "runningScore", title = gse_sorted_enrichment_lo$Description[ct])
+    pdf(paste(gsea_filename_str, "GSEA_DOWN.pdf", sep="_"))
+    # print(enrichplot::gseaplot(gse, geneSetID = geneset_id, by = "runningScore", title = gse_sorted_enrichment_lo$Description[ct]))
+    print(gplt + annotation_custom(grob1) + annotation_custom(grob2))
+    dev.off()
+    # plot and save gsea enrichment plot for down-regulated genes
+    #pdf(paste(gsea_filename_str, "GSEA_DOWN.pdf", sep="_"))
+    # print(gseaplot(gse_sorted_enrichment_lo, by = "all", title = gse_sorted_enrichment_lo$Description[ct], geneSetID = ct))
+    # gseaplot(gse_sorted_enrichment_lo, by = "all", title = gse_sorted_enrichment_lo$Description[ct], geneSetID = ct)
+    #enrichplot::gseaplot(gse_sorted_enrichment_lo, geneSetID = ct, by = "runningScore", title = gse_sorted_enrichment_lo$Description[ct])
+    #dev.off()
+    ct <- ct + 1
+  }
+  
+  
+  # return to defaults
+  setwd(maindir) # come out of gsea plots folder
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd) # come out of the folder for this process
+}
+
+# doAnalysis
+# This will run most of the other functions here.
+# 
+doAnalysis <- function(dataset, objname) {
+  
+  # create subdirectory to put the outputs into
+  foldername <- paste("SC-Analysis", objname, sep="_")
+  filenames <- paste(foldername, Sys.time(), sep="_")
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  # temporarily change the default assay during the use of this function
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # Run Functions --------------------------------------------------------------
+  # For the entire dataset, runs pseudotime analysis. 
+  # requires user input for selecting the starting point. 
+  doPseudotime(dataset, objname)# For each cluster, finds DE genes between conditions. 
+  
+  # Now includes GSEA comparing conditions for each cluster
+  FindMarkersByConditionEachCluster(dataset, objname)
+  
+  # For the entire dataset, find DE genes between conditions and find enriched gene sets
+  # requires user input for installing the species library
+  doGSEA(dataset, objname)
+  
+  plot_huang2021(dataset, objname)
+  
+  plot_FilioDCMarkers(dataset, objname)
+  
+  plot_TaylorCD8Markers(dataset, objname)
+  
+  plot_Rgs_Grk_Markers(dataset, objname)
+  
+  plot_EgressMarkers(dataset, objname)
+  # ----------------------------------------------------------------------------
+  
+  # return to defaults
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd) # come out of the folder for this process
 }
