@@ -12,7 +12,7 @@ source('/Users/username/Documents/R/SCSeqFxs.R')
 3. Then you can use any of the functions listed below in your script. 
 
 ## Dependencies: 
-- R Studio recommended (https://www.rstudio.com/)
+- R Studio recommended (https://www.rstudio.com/) \
 Requires the following libraries:
 - Seurat: https://satijalab.org/seurat/articles/install.html
 - cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html
