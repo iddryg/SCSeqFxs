@@ -14,6 +14,18 @@ source('/Users/drygi01/Documents/R/SCSeqFxs.R')
 ## Dependencies: 
 Requires the following libraries:
 Seurat
+cowplot
+patchwork
+dplyr
+ggplot2
+dittoSeq
+biomaRt
+clusterProfiler
+GSEABase
+enrichplot
+grid
+DOSE
+org.Mm.eg.db
 
 ## List of functions:
 1. get_obj_name(x)
@@ -24,6 +36,8 @@ Seurat
 6. plot_huang2021(dataset, objname)
 7. plot_FilioDCMarkers(datset, objname)
 8. plot_TaylorCD8Markers(dataset, objname)
+9. doPseudotime(dataset, objname)
+10. doGSEA(dataset, objname)
 
 # Function Descriptions
 ## get_obj_name(x)
@@ -42,7 +56,7 @@ Example call:
 plot_markers(combined.DCs, get_obj_name(combined.DCs), c("Irf4", "Il12a", "Il15", "Cxcl12", "Cxcl16", "Ccl19", "Mki67", "Xcr1", "Eadem1"))
 
 ## FindMarkersByConditionEachCluster(dataset, objname)
-Finds the top differentially expressed genes between conditions within a given cluster, for every cluster in the dataset. 
+Finds the top differentially expressed genes between conditions within a given cluster, for every cluster in the dataset. Also, performs GSEA using these differentially expressed genes using the doGSEA() function below. 
 For example, "What's differentially expressed between tumor vs. egressed populations in cluster 3? (for each cluster)"
 For each cluster, it will save text files with the top 50 up- and down- regulated genes between conditions. Additionally, ALL DE genes will be saved as a text file. Also, a .rnk file will be saved with only the top 50 up- and down- regulated genes and their L2FC values to use for GSEA. 
 This function uses FindMarkersByCondition() within it. 
@@ -80,4 +94,19 @@ Makes a bunch of plots with various markers of interest for CD8 cells that Taylo
 Saves the plots in a subdirectory of your current working directory. 
 Makes violin plots, feature plots, and violin plots split by condition. (same as plot_markers() above)
 
+## doPseudotime(datset, objname)
+Performs pseudotime analysis using Monocle3. Requires user input to choose the starting point for pseudotime. Outputs plots showing trajectories on the UMAP. 
 
+## doGSEA(datset, objname)
+Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used by FindMarkersByConditionEachCluster() 
+
+## doAnalysis(dataset, objname)
+Runs several of the above functions to streamline a general single cell analysis. 
+- doPseudotime 
+- FindmarkersByConditionEachCluster (DE gene analysis and GSEA by condition for each cluster)
+- doGSEA (DE gene analysis and GSEA for the entire dataset together)
+- plot_huang2021
+- plot_FilioDCMarkers
+- plot_TaylorCD8Markers
+- plot_Rgs_Grk_Markers
+- plot_EgressMarkers
