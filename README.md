@@ -5,11 +5,12 @@ Written by Ian Dryg for use in Amanda Lund's lab (www.thelundlab.com) in March 2
 # Documentation
 ## To use these functions:
 1. Download SCSeqFxs.R and move to whatever folder you want. 
-2. In your own R script, you have to source SCSeqFxs.R to be able to use the functions included. To do this, run:
+2. Install the libraries listed in the Dependencies section below, and load them in an R script. Example: library("Seurat")
+3. In your R script, you have to source SCSeqFxs.R to be able to use the functions included. To do this, run:
 source('filepath...../SCSeqFxs.R')
 example: 
-source('/Users/drygi01/Documents/R/SCSeqFxs.R')
-3. Then you can use any of the functions listed below. 
+source('/Users/username/Documents/R/SCSeqFxs.R')
+3. Then you can use any of the functions listed below in your script. 
 
 ## Dependencies: 
 R Studio recommended (https://www.rstudio.com/)
