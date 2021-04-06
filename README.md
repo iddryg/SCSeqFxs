@@ -12,20 +12,17 @@ source('/Users/drygi01/Documents/R/SCSeqFxs.R')
 3. Then you can use any of the functions listed below. 
 
 ## Dependencies: 
+R Studio recommended (https://www.rstudio.com/)
 Requires the following libraries:
-Seurat
-cowplot
-patchwork
-dplyr
-ggplot2
-dittoSeq
-biomaRt
-clusterProfiler
-GSEABase
-enrichplot
-grid
-DOSE
-org.Mm.eg.db
+- Seurat: https://satijalab.org/seurat/articles/install.html
+- cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html
+- tidyverse (includes ggplot2, dplyr, others): https://ggplot2.tidyverse.org/
+- patchwork: https://cran.r-project.org/web/packages/patchwork/readme/README.html
+- dittoSeq: http://www.bioconductor.org/packages/release/bioc/html/dittoSeq.html
+- clusterProfiler: https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html
+- enrichplot: http://bioconductor.org/packages/release/bioc/html/enrichplot.html
+- DOSE: https://bioconductor.org/packages/release/bioc/html/DOSE.html
+- org.Mm.eg.db: https://bioconductor.org/packages/release/data/annotation/html/org.Mm.eg.db.html
 
 ## List of functions:
 1. doAnalysis(dataset, objname)
