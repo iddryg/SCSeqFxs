@@ -28,18 +28,30 @@ DOSE
 org.Mm.eg.db
 
 ## List of functions:
-1. get_obj_name(x)
-2. plot_markers(dataset, objname, marker_panel)
-3. FindMarkersByConditionEachCluster(dataset, objname)
-4. FindMarkersByCondition(dataset, objname, ClusterID)
-5. compare_clusters(datset, objname, ClusterID1, ClusterID2)
-6. plot_huang2021(dataset, objname)
-7. plot_FilioDCMarkers(datset, objname)
-8. plot_TaylorCD8Markers(dataset, objname)
-9. doPseudotime(dataset, objname)
-10. doGSEA(dataset, objname)
+1. doAnalysis(dataset, objname)
+2. get_obj_name(x)
+3. plot_markers(dataset, objname, marker_panel)
+4. FindMarkersByConditionEachCluster(dataset, objname)
+5. FindMarkersByCondition(dataset, objname, ClusterID)
+6. compare_clusters(datset, objname, ClusterID1, ClusterID2)
+7. plot_huang2021(dataset, objname)
+8. plot_FilioDCMarkers(datset, objname)
+9. plot_TaylorCD8Markers(dataset, objname)
+10. doPseudotime(dataset, objname)
+11. doGSEA(dataset, objname)
 
 # Function Descriptions
+## doAnalysis(dataset, objname)
+Runs several of the functions below to streamline cluster annotation and a general single cell analysis. 
+- doPseudotime 
+- FindmarkersByConditionEachCluster (DE gene analysis and GSEA by condition for each cluster)
+- doGSEA (DE gene analysis and GSEA for the entire dataset together)
+- plot_huang2021
+- plot_FilioDCMarkers
+- plot_TaylorCD8Markers
+- plot_Rgs_Grk_Markers
+- plot_EgressMarkers
+- 
 ## get_obj_name(x)
 Gets the name of an object. You can use this to provide the "objname" parameter for most of the other functions. 
 Example:
@@ -100,13 +112,3 @@ Performs pseudotime analysis using Monocle3. Requires user input to choose the s
 ## doGSEA(datset, objname)
 Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used by FindMarkersByConditionEachCluster() 
 
-## doAnalysis(dataset, objname)
-Runs several of the above functions to streamline a general single cell analysis. 
-- doPseudotime 
-- FindmarkersByConditionEachCluster (DE gene analysis and GSEA by condition for each cluster)
-- doGSEA (DE gene analysis and GSEA for the entire dataset together)
-- plot_huang2021
-- plot_FilioDCMarkers
-- plot_TaylorCD8Markers
-- plot_Rgs_Grk_Markers
-- plot_EgressMarkers
