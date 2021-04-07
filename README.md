@@ -16,11 +16,11 @@ R Studio recommended (https://www.rstudio.com/) \
 \
 Requires the following libraries:
 - Seurat: https://satijalab.org/seurat/articles/install.html \
-Enter commands in R (or R studio, if installed)
-install.packages('Seurat')
+install.packages('Seurat') \
 library(Seurat)
-- cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html
-
+- cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html \
+install.packages("cowplot") \
+library(cowplot)
 - tidyverse (includes ggplot2, dplyr, others): https://ggplot2.tidyverse.org/
 - patchwork: https://cran.r-project.org/web/packages/patchwork/readme/README.html
 - dittoSeq: http://www.bioconductor.org/packages/release/bioc/html/dittoSeq.html
