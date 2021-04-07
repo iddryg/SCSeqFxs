@@ -52,7 +52,7 @@ Runs several of the functions below to streamline cluster annotation and a gener
 
 ## get_obj_name(x)
 Gets the name of an object. You can use this to provide the "objname" parameter for most of the other functions. \
-Example: \
+Example call: \
 plot_markers(dataset, get_obj_name(dataset), marker_panel)
 
 ## plot_markers(dataset, objname, marker_panel)
