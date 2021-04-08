@@ -6,10 +6,13 @@
 # plot_markers
 # FindMarkersByConditionEachCluster
 # FindMarkersByCondition
-# CompareClusters
+# compare_clusters
 # plot_huang2021
 # plot_filioDCMarkers
 # Plot_TaylorMarkers
+# doPseudotime
+# doGSEA
+# doAnalysis
 
 
 # get the name of an object
@@ -108,13 +111,14 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
   # save a text file describing the conditions compared
   write.table(ConditionList[1:2], sep="\t", file="Condition1vsCondition2.txt", quote = FALSE, row.names = TRUE)
   
-  # install organism library for GSEA
-  if (runGsea == TRUE) {
-    # SET THE DESIRED ORGANISM HERE
-    # organism = "org.Mm.eg.db"
-    BiocManager::install(organism, character.only = TRUE)
-    library(organism, character.only = TRUE)
-  }
+  # I'm gonna assume this is already installed since it's in the readme to do so. 
+  ## install organism library for GSEA
+  #if (runGsea == TRUE) {
+  #  # SET THE DESIRED ORGANISM HERE
+  #  # organism = "org.Mm.eg.db"
+  #  BiocManager::install(organism, character.only = TRUE)
+  #  library(organism, character.only = TRUE)
+  #}
   
   for (ClusterID in ClusterList) {
     #FindMarkersByCondition(subset(dataset, Idents(dataset)==ClusterID), obj_name(dataset), ClusterID)
@@ -144,7 +148,9 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
     if (runGsea == FALSE) {
       FindMarkersByCondition(cell_subset, objname, ClusterID)
     }
-    doGSEA(dataset, objname, ClusterID)
+    
+    # use a trycatch here since GSEA gives errors so often.
+    doGSEA(cell_subset, objname, ClusterID)
   }
   # Reset to original working directory and default array
   DefaultAssay(dataset) <- tempdftassay
@@ -1082,12 +1088,12 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
   comparison_str2 <- paste(comparison_str, objname, sep = "_") # Egress_vs_Tumor_combined.CD8s
   filename_str <- paste(clustername, comparison_str2, sep = "_") # Cluster0_Egress_vs_Tumor_combined.CD8s
   
-  if (installOrganism == TRUE) {
-    # SET THE DESIRED ORGANISM HERE
-    # organism = "org.Mm.eg.db"
-    BiocManager::install(organism, character.only = TRUE)
-    library(organism, character.only = TRUE)
-  }
+  #if (installOrganism == TRUE) {
+  #  # SET THE DESIRED ORGANISM HERE
+  #  # organism = "org.Mm.eg.db"
+  #  BiocManager::install(organism, character.only = TRUE)
+  #  library(organism, character.only = TRUE)
+  #}
   
   # get the DE gene table using my custom function (essentially uses seurat's FindMarkers)
   DE.genes.by.condition <- FindMarkersByCondition(dataset, objname, ClusterID, num_genes = 100, return_table = TRUE)
@@ -1117,7 +1123,7 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
   gse <- gseGO(geneList=ranked.list, 
                ont ="ALL", 
                keyType = "SYMBOL", 
-               minGSSize = 3, 
+               minGSSize = 5, 
                maxGSSize = 1000, 
                pvalueCutoff = 0.05, 
                verbose = TRUE, 
@@ -1138,7 +1144,7 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
   dev.off()
   
   # ridgeplot
-  pdf(paste(filename_str, "GSEA_netplot.pdf", sep="_"), height=16, width=14)
+  pdf(paste(filename_str, "GSEA_ridgeplot.pdf", sep="_"), height=16, width=14)
   print(ridgeplot(gse) + labs(x = "enrichment distribution"))
   dev.off()
   
@@ -1151,8 +1157,9 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
   gse_sorted_enrichment_hi <- gse_sorted[hi_ndx,]
   gse_sorted_enrichment_lo <- gse_sorted[lo_ndx,]
   # Filter out genesets with 5 or fewer genes
-  gse_sorted_enrichment_hi <- subset(gse_sorted_enrichment_hi, gse_sorted_enrichment_hi$setSize > 5)
-  gse_sorted_enrichment_lo <- subset(gse_sorted_enrichment_lo, gse_sorted_enrichment_lo$setSize > 5)
+  # did this in the gseGO() call so commenting these out. 
+  # gse_sorted_enrichment_hi <- subset(gse_sorted_enrichment_hi, gse_sorted_enrichment_hi$setSize > 5)
+  # gse_sorted_enrichment_lo <- subset(gse_sorted_enrichment_lo, gse_sorted_enrichment_lo$setSize > 5)
   # these should still be sorted, so good to go for next steps. I think. 
   
   # Save txt files of the sorted data to look at
@@ -1182,7 +1189,7 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
     # reformat file naming for each cycle
     gsea_filename_str <- paste(filename_str, ct, sep="_")
     # plot and save gsea enrichment plot for up-regulated genes
-    # Create an annotation for the NES and p-value
+    # Create an annotation for the NES and p-value with 5 sig figs
     grob1 <- grobTree(textGrob(paste("NES: ", trimws(format(round(gse_sorted_enrichment_hi$NES[ct],5), nsmall=5))), x=0.7,  y=0.95, hjust=0,
                               gp=gpar(col="red", fontsize=13)))
     grob2 <- grobTree(textGrob(paste("p-value: ", trimws(format(round(gse_sorted_enrichment_hi$pvalue[ct],5), nsmall=5))), x=0.7,  y=0.90, hjust=0,
@@ -1247,7 +1254,7 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
 # doAnalysis
 # This will run most of the other functions here.
 # 
-doAnalysis <- function(dataset, objname) {
+doAnalysis <- function(dataset, objname, annotation_plots = TRUE) {
   
   # create subdirectory to put the outputs into
   foldername <- paste("SC-Analysis", objname, sep="_")
@@ -1267,22 +1274,99 @@ doAnalysis <- function(dataset, objname) {
   # Now includes GSEA comparing conditions for each cluster
   FindMarkersByConditionEachCluster(dataset, objname)
   
+  # note: decided to skip this for now... not that worth it. 
   # For the entire dataset, find DE genes between conditions and find enriched gene sets
   # requires user input for installing the species library
-  doGSEA(dataset, objname)
+  # doGSEA(dataset, objname)
   
-  plot_huang2021(dataset, objname)
-  
-  plot_FilioDCMarkers(dataset, objname)
-  
-  plot_TaylorCD8Markers(dataset, objname)
-  
-  plot_Rgs_Grk_Markers(dataset, objname)
-  
-  plot_EgressMarkers(dataset, objname)
+  # Call all the annotation plotting functions. 
+  if (annotation_plots == TRUE) {
+    plot_huang2021(dataset, objname)
+    
+    plot_FilioDCMarkers(dataset, objname)
+    
+    plot_TaylorCD8Markers(dataset, objname)
+    
+    plot_Rgs_Grk_Markers(dataset, objname)
+    
+    plot_EgressMarkers(dataset, objname)
+  }
   # ----------------------------------------------------------------------------
   
   # return to defaults
   DefaultAssay(dataset) <- tempdftassay
   setwd(oldwd) # come out of the folder for this process
 }
+
+
+# Subset out the desired cluster first, then call this function to do clustering. 
+# Example:
+# # Subset CD8+ T-cells...
+# combined.cd8s <- subset(immune.combined, idents = c("2: CD8+ T-cells", "5: Mitotic T-cells"))
+# combined.cd8s <- doSeuratClustering(combined.cd8s)
+doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackstraw=TRUE) {
+  # Make subdirectory for this clustering
+  foldername <- paste(objname, "clustering", sep="_") # combined.CD8s_clustering
+  filenames <- paste(foldername, Sys.time(), sep="_") # combined.CD8s_clustering_datetime
+  dir.create(file.path(filenames))
+  oldwd <- getwd()
+  setwd(file.path(filenames))
+  
+  # Begin Clustering
+  print('~~FindVariableFeatures~~')
+  dataset <- FindVariableFeatures(dataset, selection.method = "vst", nfeatures = 2000)
+  print('~~ScaleData~~')
+  dataset <- ScaleData(dataset, verbose = FALSE)
+  print('~~RunPCA~~')
+  dataset <- RunPCA(dataset, npcs = num_pca_dims, verbose = FALSE)
+  
+  if (evaluatejackstraw == TRUE) {
+    print('~~RunJackStraw~~')
+    # Which PCAs to select? Save these plots for later just to see. 
+    dataset <- JackStraw(dataset, num.replicate = 100, dims = num_pca_dims)
+    dataset <- ScoreJackStraw(dataset, dims = 1:num_pca_dims)
+    pdf(paste(objname, "Check_Jackstar_dim50.pdf"), width = 14)
+    print(JackStrawPlot(dataset, dims = 1:num_pca_dims))
+    dev.off()
+    pdf(paste(objname, "Elbow_PCA_dim50.pdf"))
+    print(ElbowPlot(dataset))
+    dev.off()
+  }
+  
+  # Finish clustering
+  print('~~RunUMAP~~')
+  dataset <- RunUMAP(dataset, reduction = "pca", dims = 1:num_pca_dims)
+  print('~~FindNeighbors~~')
+  dataset <- FindNeighbors(dataset, reduction = "pca", dims = 1:num_pca_dims)
+  print('~~FindClusters~~')
+  dataset <- FindClusters(dataset, resolution = 0.5)
+  
+  # temporarily change the default assay during the use of this function
+  # tempdftassay <- DefaultAssay(dataset)
+  # DefaultAssay(dataset) <- "RNA"
+  
+  print('~~Saving UMAPs~~')
+  # Visualize and save UMAPs
+  pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  # split by orig.ident
+  pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
+  dev.off()
+  # Both plots together
+  p1 <- DimPlot(dataset, reduction = "umap", group.by = "Condition", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6)
+  p2 <- DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6)
+  pdf(paste(objname, "UMAPs.pdf", sep="_"), width=20, height = 12)
+  print(p1 + p2)
+  dev.off()
+  
+  # return to defaults
+  # DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd) # come out of the folder for this process
+  
+  endmsg <- paste("~~ Finished with ", objname, sep = "")
+  print(paste(endmsg, "~~", sep = ""))
+  return(dataset)
+}
+
