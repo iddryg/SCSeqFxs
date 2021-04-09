@@ -121,7 +121,12 @@ Example call: \
 doPseudotime(combined.DCs, get_obj_name(combined.DCs))
 
 ## doGSEA(datset, objname)
-Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used by FindMarkersByConditionEachCluster() \
+Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used within tryGSEA() by FindMarkersByConditionEachCluster() \
 Example call: \
 doGSEA(combined.DCs, get_obj_name(combined.DCs))
+
+## tryGSEA(datset, objname, ClusterID)
+Wraps doGSEA() in a trycatch() to handle errors. This allows FindMarkersByConditionEachCluster() to continue through all clusters even if errors pop up. \
+Example call: \
+tryGSEA(combined.DCs, get_obj_name(combined.DCs), 0)
 
