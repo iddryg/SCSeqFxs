@@ -150,7 +150,8 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
     }
     
     # use a trycatch here since GSEA gives errors so often.
-    doGSEA(cell_subset, objname, ClusterID)
+    #doGSEA(cell_subset, objname, ClusterID)
+    tryGSEA(cell_subset, objname, ClusterID)
   }
   # Reset to original working directory and default array
   DefaultAssay(dataset) <- tempdftassay
@@ -1027,7 +1028,7 @@ doPseudotime <- function(dataset, objname, partition_option = FALSE) {
   
   # Plot UMAPs for context
   umap_plt <- DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE)
-  umap_by_cond <- DimPlot(dataset, reduction = "umap", group.by = "Condition")
+  umap_by_cond <- DimPlot(dataset, reduction = "umap", group.by = "orig.ident")
   
   pdf(paste(objname, "UMAPs.pdf", sep="_"), width=14)
   print(umap_plt + labs(title = "Clusters") + theme(plot.title = element_text(hjust = 0.5)) + 
@@ -1355,7 +1356,7 @@ doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackst
   print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6))
   dev.off()
   # Both plots together
-  p1 <- DimPlot(dataset, reduction = "umap", group.by = "Condition", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6)
+  p1 <- DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6)
   p2 <- DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75, label.size = 6)
   pdf(paste(objname, "UMAPs.pdf", sep="_"), width=20, height = 12)
   print(p1 + p2)
@@ -1370,3 +1371,99 @@ doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackst
   return(dataset)
 }
 
+# a GSEA try catch function to continue with the code if GSEA fails, which it
+# often does depending on the results of the DE gene analysis... If there are very few
+# DE expressed genes, for example. 
+tryGSEA <- function(dataset, objname, ClusterID) {
+  tryCatch(
+    
+    ########################################################
+    # Try part: define the expression(s) you want to "try" #
+    ########################################################
+    
+    {
+      # Try...
+      message(paste("Trying GSEA for cluster ", ClusterID))
+      oldwd <- getwd() # save the current wd. If it errors out, reset to that. 
+      # Write some stats to a log
+      cond_list <- unique(dataset$orig.ident)
+      
+      tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+      cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste("Cluster ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste("dataset size: ", as.character(dim(dataset))), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+      
+      #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
+      #writeLines(c("\n",
+      #             "-----------------------------------------------------------",
+      #             "-----------------------------------------------------------",
+      #             paste("Cluster ", ClusterID), 
+      #             paste("dataset size: ", as.character(dim(dataset))),
+      #             paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])]))),
+      #             paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])))),
+      #           con = tryGSEA_log)
+      #close(tryGSEA_log)
+      
+      doGSEA(dataset, objname, ClusterID)
+    },
+    
+    ########################################################################
+    # Condition handler part: define how you want conditions to be handled #
+    ########################################################################
+    
+    # Handler when a warning occurs:
+    warning = function(cond) {
+      tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+      cat("- - - - - - - - - - - - - - - - - - - -", file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste(" WARNING IN CLUSTER ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(as.character(cond), file = tryGSEA_log, append = TRUE, sep = "\n")
+      
+      #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
+      #writeLines(c("\n",
+      #             "- - - - - - - - - - - - - - - - - - - -",
+      #             paste(" WARNING IN CLUSTER ", ClusterID), 
+      #             "Warning message: ",
+      #             as.character(cond)),
+      #           con = tryGSEA_log)
+      #close(tryGSEA_log)
+      
+      message(paste("A warning was caused for cluster ", ClusterID))
+      message("Here's the original warning message: ")
+      message(cond)
+    },
+    
+    # Handler when an error occurs:
+    error = function(cond) {
+      tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+      cat("- - - - - - - - - - - - - - - - - - - -", file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(paste(" ERROR IN CLUSTER ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(as.character(cond), file = tryGSEA_log, append = TRUE, sep = "\n")
+      
+      #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
+      #writeLines(c("\n",
+      #             "- - - - - - - - - - - - - - - - - - - -",
+      #             paste(" ERROR IN CLUSTER ", ClusterID), 
+      #             "Error message: ",
+      #             as.character(cond)),
+      #           con = tryGSEA_log)
+      #close(tryGSEA_log)
+      
+      message(paste("An error was caused for cluster ", ClusterID))
+      message("Here's the original error message: ")
+      message(cond)
+    },
+    
+    ###############################################
+    # Final part: define what should happen AFTER #
+    # everything has been tried and/or handled    #
+    ###############################################
+    
+    finally = {
+      setwd(oldwd) # come out of the folder for this process
+      message(paste("Processed GSEA for cluster ", ClusterID))
+    }
+  )    
+}
