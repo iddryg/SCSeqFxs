@@ -17,17 +17,37 @@ R Studio recommended (https://www.rstudio.com/) \
 Requires the following libraries:
 - Seurat: https://satijalab.org/seurat/articles/install.html \
 install.packages('Seurat') \
-library(Seurat)
+library(Seurat) \
 - cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html \
 install.packages("cowplot") \
 library(cowplot)
 - tidyverse (includes ggplot2, dplyr, others): https://ggplot2.tidyverse.org/
+install.packages("tidyverse") \
+library(tidyverse) \
 - patchwork: https://cran.r-project.org/web/packages/patchwork/readme/README.html
+install.packages('patchwork') \
+library(patchwork) \
 - dittoSeq: http://www.bioconductor.org/packages/release/bioc/html/dittoSeq.html
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("dittoSeq") \
+library(dittoSeq) \
 - clusterProfiler: https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("clusterProfiler") \
 - enrichplot: http://bioconductor.org/packages/release/bioc/html/enrichplot.html
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("enrichplot") \
 - DOSE: https://bioconductor.org/packages/release/bioc/html/DOSE.html
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("DOSE") \
 - org.Mm.eg.db: https://bioconductor.org/packages/release/data/annotation/html/org.Mm.eg.db.html
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("org.Mm.eg.db") \
 
 ## List of functions:
 1. doAnalysis(dataset, objname)
