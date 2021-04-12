@@ -47,7 +47,7 @@ BiocManager::install("DOSE")
 - org.Mm.eg.db: https://bioconductor.org/packages/release/data/annotation/html/org.Mm.eg.db.html \
 if (!requireNamespace("BiocManager", quietly = TRUE)) \
     install.packages("BiocManager") \
-BiocManager::install("org.Mm.eg.db") \
+BiocManager::install("org.Mm.eg.db")
 
 ## List of functions:
 1. doAnalysis(dataset, objname)
