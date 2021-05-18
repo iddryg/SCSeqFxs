@@ -21,13 +21,33 @@ library(Seurat)
 - cowplot: https://cran.r-project.org/web/packages/cowplot/readme/README.html \
 install.packages("cowplot") \
 library(cowplot)
-- tidyverse (includes ggplot2, dplyr, others): https://ggplot2.tidyverse.org/
-- patchwork: https://cran.r-project.org/web/packages/patchwork/readme/README.html
-- dittoSeq: http://www.bioconductor.org/packages/release/bioc/html/dittoSeq.html
-- clusterProfiler: https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html
-- enrichplot: http://bioconductor.org/packages/release/bioc/html/enrichplot.html
-- DOSE: https://bioconductor.org/packages/release/bioc/html/DOSE.html
-- org.Mm.eg.db: https://bioconductor.org/packages/release/data/annotation/html/org.Mm.eg.db.html
+- tidyverse (includes ggplot2, dplyr, others): https://ggplot2.tidyverse.org/ \
+install.packages("tidyverse") \
+library(tidyverse)
+- patchwork: https://cran.r-project.org/web/packages/patchwork/readme/README.html \
+install.packages('patchwork') \
+library(patchwork)
+- dittoSeq: http://www.bioconductor.org/packages/release/bioc/html/dittoSeq.html \
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("dittoSeq") \
+library(dittoSeq)
+- clusterProfiler: https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html \
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("clusterProfiler")
+- enrichplot: http://bioconductor.org/packages/release/bioc/html/enrichplot.html \
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("enrichplot")
+- DOSE: https://bioconductor.org/packages/release/bioc/html/DOSE.html \
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("DOSE")
+- org.Mm.eg.db: https://bioconductor.org/packages/release/data/annotation/html/org.Mm.eg.db.html \
+if (!requireNamespace("BiocManager", quietly = TRUE)) \
+    install.packages("BiocManager") \
+BiocManager::install("org.Mm.eg.db")
 
 ## List of functions:
 1. doAnalysis(dataset, objname)
@@ -121,7 +141,12 @@ Example call: \
 doPseudotime(combined.DCs, get_obj_name(combined.DCs))
 
 ## doGSEA(datset, objname)
-Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used by FindMarkersByConditionEachCluster() \
+Finds differentially expressed genes between conditions and performs GSEA on a seurat object. This function is used within tryGSEA() by FindMarkersByConditionEachCluster() \
 Example call: \
 doGSEA(combined.DCs, get_obj_name(combined.DCs))
+
+## tryGSEA(datset, objname, ClusterID)
+Wraps doGSEA() in a trycatch() to handle errors. This allows FindMarkersByConditionEachCluster() to continue through all clusters even if errors pop up. \
+Example call: \
+tryGSEA(combined.DCs, get_obj_name(combined.DCs), 0)
 
