@@ -20,6 +20,13 @@ get_obj_name <- function(x) {
   print(as.character(substitute(x)))
 }
 
+# gets the current timestamp "hour_min_second" to add to folder names
+get_folder_timestamp <- function() {
+  min_sec <- paste(as.character(as.POSIXlt(Sys.time())$min), as.character(round(as.POSIXlt(Sys.time())$sec)), sep = "_")
+  folder_timestamp <- paste(as.character(as.POSIXlt(Sys.time())$hour), min_sec, sep = "_")
+  return(folder_timestamp)
+}
+
 
 # General use function to make plots with whatever set of markers you want
 # Works best with 4 or 6 markers, but can change ncol to fit others better. 
@@ -29,12 +36,19 @@ get_obj_name <- function(x) {
 # example function call:
 # plot_markers(combined.DCs, get_obj_name(combined.DCs), c("Irf4", "Il12a", "Il15", "Cxcl12", "Cxcl16", "Ccl19", "Mki67", "Xcr1", "Eadem1"))
 plot_markers <- function(dataset, objname, marker_panel) {
+  
   # create subdirectory to put the outputs into
-  foldername <- paste("custom_markers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
+  foldername <- paste("PlotMarkers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
   oldwd <- getwd()
-  setwd(file.path(filenames))
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_markers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
   # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
@@ -50,15 +64,16 @@ plot_markers <- function(dataset, objname, marker_panel) {
   dev.off()
   
   # Violin plots
-  pdf(paste(filenames, "_Violins.pdf", sep=""), width = 12, height = 10)
-  print(VlnPlot(dataset, features = marker_panel, pt.size = 0, ncol = 3))
+  pdf("Violins.pdf", width = 16, height = 10)
+  plots <- VlnPlot(dataset, features = marker_panel, pt.size = 0)
+  print(wrap_plots(plots = plots))
   dev.off()
   # Feature plots
-  pdf(paste(filenames, "_FeaturePlot.pdf", sep=""), width = 12, height = 10)
+  pdf("FeaturePlot.pdf", width = 12, height = 10)
   print(FeaturePlot(dataset, features = marker_panel, ncol = 3))
   dev.off()
   # Violin plots split by condition
-  pdf(paste(filenames, "_SplitViolins.pdf", sep=""), width = 16, height = 10)
+  pdf("SplitViolins.pdf", width = 16, height = 10)
   plots <- VlnPlot(dataset, features = marker_panel, split.by = "orig.ident", 
                    pt.size = 0, combine = FALSE)
   print(wrap_plots(plots = plots, nrow = 3))
@@ -77,17 +92,20 @@ plot_markers <- function(dataset, objname, marker_panel) {
 # example function call:
 # FindMarkersByConditionEachCluster(combined.DCs, get_obj_name(combined.DCs))
 FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) {
-  # create subdirectory to put the outputs into
-  oldwd <- getwd()
-  string1 <- "MarkersByCondition"
-  if (runGsea == TRUE) {
-    string1 <- "GSEA_&_DE_ByCondition"
-  }
-  foldername <- paste(string1, objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  foldername <- paste("GSEA_DE_ByCondition", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: FindMarkersByConditionEachCluster", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "integrated"
   
@@ -128,13 +146,14 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
     # make a new column called celltype to store the old cluster identities
     cell_subset$celltype <- Idents(cell_subset)
     # Fill the identities column with the values in the "Condition" column ("egressed" or "tumor")
-    Idents(cell_subset) <- "Condition"
+    Idents(cell_subset) <- "orig.ident"
     # If the number of cells in a certain group is 3 or less, skip it and print a note.
     # cells.cond1.use <- colnames(cell_subset)[which(cell_subset[[]]['Condition'] == "egressed")]
     # cells.cond2.use <- colnames(cell_subset)[which(cell_subset[[]]['Condition'] == "tumor")]
     # try using orig.ident instead:
     cells.cond1.use <- colnames(cell_subset)[which(cell_subset[[]]['orig.ident'] == ConditionList[1])]
     cells.cond2.use <- colnames(cell_subset)[which(cell_subset[[]]['orig.ident'] == ConditionList[2])]
+    
     if (length(cells.cond1.use) < 4 || length(cells.cond2.use) < 4) {
       print('Number of cells in a condition group of cluster: ')
       print(ClusterID)
@@ -151,7 +170,7 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
     
     # use a trycatch here since GSEA gives errors so often.
     #doGSEA(cell_subset, objname, ClusterID)
-    tryGSEA(cell_subset, objname, ClusterID)
+    tryGSEA(cell_subset, objname, ClusterID, comparison = "condition")
   }
   # Reset to original working directory and default array
   DefaultAssay(dataset) <- tempdftassay
@@ -165,19 +184,24 @@ FindMarkersByConditionEachCluster <- function(dataset, objname, runGsea = TRUE) 
 # Can define the number of genes to include in the "top" and "bot" comparisons
 # If return_table is TRUE, it returns the results table, which can be used for GSEA and other things. 
 FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 100, return_table = FALSE) {
-  # create subdirectory to put the outputs into
-  oldwd <- getwd()
-  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
-  gene_amount <- paste("Top", num_genes, sep="") # Top50
-  clusterandgene <- paste(clustername, gene_amount, sep="_") # Cluster0_Top50
-  foldername <- paste(clustername, objname, sep="_") # Cluster0__Top50_combined.DCs
-  filenames <- paste(foldername, Sys.time(), sep="_") # Cluster0__Top50_combined.DCs_datetime...
-  dir.create(file.path(filenames))
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
+  foldername <- paste(clustername, get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: FindMarkersByCondition", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Cluster: ", ClusterID), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "integrated"
-  
   
   # make a list of the different conditions, or "orig.ident"s
   cond_list <- unique(dataset$orig.ident)
@@ -190,22 +214,21 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 100,
   # save a text file describing the conditions compared
   write.table(cond_list[1:2], sep="\t", file="Condition1vsCondition2.txt", quote = FALSE, row.names = TRUE)
   # save the results to a text file
-  clustername <- paste("Cluster", ClusterID, sep="")
   write.table(markers, sep="\t", file=paste(clustername, "MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   write.table(markers['avg_log2FC'], sep="\t", file=paste(clustername, "Markers&LFCByCondition.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
   # top 50 most up- and down- regulated genes
   top_genes <- markers %>% top_n(n = num_genes, wt = avg_log2FC)
   bot_genes <- markers %>% top_n(n = (-1)*num_genes, wt = avg_log2FC)
-  write.table(top_genes, sep="\t", file=paste(clusterandgene, "UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(bot_genes, sep="\t", file=paste(clusterandgene, "DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(top_genes), sep="\t", file=paste(clusterandgene, "UP_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(bot_genes), sep="\t", file=paste(clusterandgene, "DOWN_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(top_genes, sep="\t", file=paste(clustername, "UP_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(bot_genes, sep="\t", file=paste(clustername, "DOWN_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(top_genes), sep="\t", file=paste(clustername, "UP_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(bot_genes), sep="\t", file=paste(clustername, "DOWN_Names_MarkersByCondition.txt", sep="_"), quote = FALSE, row.names = TRUE)
   
   # Heatmaps of the above markers
-  pdf(paste(clusterandgene, "UP_MarkersByCondition.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "UP_MarkersByCondition.pdf", sep="_"), height = 12)
   print(DoHeatmap(dataset, features = row.names(top_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
-  pdf(paste(clusterandgene, "DOWN_MarkersByCondition.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "DOWN_MarkersByCondition.pdf", sep="_"), height = 12)
   print(DoHeatmap(dataset, features = row.names(bot_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
   
@@ -220,50 +243,124 @@ FindMarkersByCondition <- function(dataset, objname, ClusterID, num_genes = 100,
 }
 
 
+# For a dataset, find the DE genes between one cluster and the rest of the dataset
+# Example, what's transcriptionally different about Cluster0?
+# Can define the number of genes to include in the "top" and "bot" comparisons
+# If return_table is TRUE, it returns the results table, which can be used for GSEA and other things. 
+FindMarkersByCluster <- function(dataset, objname, ClusterID, num_genes = 100, return_table = FALSE) {
+  
+  # create subdirectory to put the outputs into
+  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
+  foldername <- paste(clustername, get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: FindMarkersByCluster", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Cluster: ", ClusterID), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "integrated"
+  
+  # If Idents have been renamed, we can't use ClusterID for the ident in the FindMarkers function
+  # So make a new column for the cluster names
+  dataset$ClusterNames <- Idents(dataset)
+  # set seurat_clusters as the idents
+  Idents(dataset) <- dataset$seurat_clusters
+  
+  # find markers for that cluster
+  markers <- FindMarkers(dataset, ident.1 = ClusterID, min.pct = 0.25, verbose = FALSE)
+  # save the results to a text file
+  clustername <- paste("Cluster", ClusterID, sep="")
+  write.table(markers, sep="\t", file=paste(clustername, "Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(markers['avg_log2FC'], sep="\t", file=paste(clustername, "Markers&LFC.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
+  # top 50 most up- and down- regulated genes
+  top_genes <- markers %>% top_n(n = num_genes, wt = avg_log2FC)
+  bot_genes <- markers %>% top_n(n = (-1)*num_genes, wt = avg_log2FC)
+  write.table(top_genes, sep="\t", file=paste(clustername, "UP_MarkersByCluster.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(bot_genes, sep="\t", file=paste(clustername, "DOWN_MarkersByCluster.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(top_genes), sep="\t", file=paste(clustername, "UP_Names_MarkersByCluster.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(bot_genes), sep="\t", file=paste(clustername, "DOWN_Names_MarkersByCluster.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  
+  # Heatmaps of the above markers
+  pdf(paste(clustername, "UP_MarkersByCluster.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(top_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  pdf(paste(clustername, "DOWN_MarkersByCluster.pdf", sep="_"), height = 12)
+  print(DoHeatmap(dataset, features = row.names(bot_genes), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+  
+  # Return the results table if return_table is TRUE
+  if (return_table == TRUE) {
+    return(markers)
+  }
+}
+
+
+
 # Finds the DE genes between two clusters, outputs tables and heatmaps. 
 # Example, what's different between clusters 9 and 1?
 # ClusterID1 and ClusterID2 should be strings containing the cluster IDs
 # Example call:
 # compare_clusters(combined.DCs, get_obj_name(combined.DCs), "0", "1")
 compare_clusters <- function(dataset, objname, ClusterID1, ClusterID2) {
-  # create subdirectory to put the outputs into
-  comparison <- paste(ClusterID1, ClusterID2, sep="_vs_")
-  oldwd <- getwd()
-  name1 <- paste(comparison, objname, sep="_")
-  foldername <- paste(name1, "DEMarkers", sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  comparison <- paste(ClusterID1, ClusterID2, sep="vs")
+  clustername <- paste("Cluster", comparison, sep="") # Cluster0vs2
+  foldername <- paste(clustername, get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: compare_clusters", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Cluster1: ", ClusterID1), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Cluster2: ", ClusterID2), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "integrated"
   
+  # find markers
   markers <- FindMarkers(dataset, ident.1 = ClusterID1, ident.2 = ClusterID2, min.pct = 0.25, verbose = FALSE)
   # save the results to a text file
-  write.table(markers, sep="\t", file=paste(comparison, "Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(markers['avg_log2FC'], sep="\t", file=paste(comparison, "Markers&LFC.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
+  write.table(markers, sep="\t", file=paste(clustername, "Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(markers['avg_log2FC'], sep="\t", file=paste(clustername, "Markers&LFC.rnk", sep="_"), quote = FALSE, row.names = TRUE, col.names = FALSE)
   # top 50 most up- and down- regulated genes
   top50 <- markers %>% top_n(n = 50, wt = avg_log2FC)
   bot50 <- markers %>% top_n(n = -50, wt = avg_log2FC)
-  write.table(top50, sep="\t", file=paste(comparison, "top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(bot50, sep="\t", file=paste(comparison, "top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(top50), sep="\t", file=paste(comparison, "Names_top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
-  write.table(row.names(bot50), sep="\t", file=paste(comparison, "Names_top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(top50, sep="\t", file=paste(clustername, "top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(bot50, sep="\t", file=paste(clustername, "top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(top50), sep="\t", file=paste(clustername, "Names_top50UP_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
+  write.table(row.names(bot50), sep="\t", file=paste(clustername, "Names_top50DOWN_Markers.txt", sep="_"), quote = FALSE, row.names = TRUE)
   
   cells_compared <- subset(dataset, seurat_clusters == ClusterID1 | seurat_clusters == ClusterID2)
   # Heatmaps of the above markers
   # show all clusters but only the DE genes between the two: 
-  pdf(paste(comparison, "top50UP_Markers_AllClusters.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "top50UP_Markers_AllClusters.pdf", sep="_"), height = 12)
   print(DoHeatmap(dataset, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
-  pdf(paste(comparison, "top50DOWN_Markers_AllClusters.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "top50DOWN_Markers_AllClusters.pdf", sep="_"), height = 12)
   print(DoHeatmap(dataset, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
   # show only the two clusters compared
-  pdf(paste(comparison, "top50UP_Markers.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "top50UP_Markers.pdf", sep="_"), height = 12)
   print(DoHeatmap(cells_compared, features = row.names(top50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
-  pdf(paste(comparison, "top50DOWN_Markers.pdf", sep="_"), height = 12)
+  pdf(paste(clustername, "top50DOWN_Markers.pdf", sep="_"), height = 12)
   print(DoHeatmap(cells_compared, features = row.names(bot50), size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
   dev.off()
   
@@ -275,13 +372,20 @@ compare_clusters <- function(dataset, objname, ClusterID1, ClusterID2) {
 
 # Markers from Huang et al 2021 - Innervated Lymph Nodes ------------------
 plot_huang2021 <- function(dataset, objname) {
-  # create subdirectory to put the outputs into
-  foldername <- paste("Huang2021_markers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  oldwd <- getwd()
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  foldername <- paste("Huang2021_Markers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_huang2021", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
@@ -446,13 +550,20 @@ plot_huang2021 <- function(dataset, objname) {
 # pDCs: Lin- (Ter119-(Ly76), Cd3-(Cd3e), Cd19-, Nk1.1-(Klrb1c))
 #       Cd11c+(Itgax), Siglech+, CD45R/B220+(Ptprc),
 plot_FilioDCMarkers <- function(dataset, objname) {
-  # create subdirectory to put the outputs into
-  foldername <- paste("FilioDC_markers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  oldwd <- getwd()
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  foldername <- paste("FilioDCMarkers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_FilioDCMarkers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
@@ -559,13 +670,20 @@ plot_FilioDCMarkers <- function(dataset, objname) {
 # Eomes, Tbx21, Runx3, Id2, Id3, Tox, Il7r, Klrg1, Ccr7, Pdcd1, Havcr2, and Lag3
 # dataset is the dataset, objname is the name of the seurat object
 plot_TaylorCD8Markers <- function(dataset, objname) {
-  # create subdirectory to put the outputs into
-  foldername <- paste("TaylorCD8_markers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  oldwd <- getwd()
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  foldername <- paste("TaylorCD8Markers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_TaylorCD8Markers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
@@ -674,12 +792,19 @@ plot_TaylorCD8Markers <- function(dataset, objname) {
 # These can modify it from inside the cell and affect signaling,
 # thereby altering cell egress via CXCR4 / CXCL12 activity. 
 plot_Rgs_Grk_Markers <- function(dataset, objname) {
+  
   # create subdirectory to put the outputs into
-  foldername <- paste("Rgs_Grk_Markers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
+  foldername <- paste("RgsGrk_Markers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
   oldwd <- getwd()
-  setwd(file.path(filenames))
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_Rgs_Grk_Markers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
   # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
@@ -777,12 +902,18 @@ plot_Rgs_Grk_Markers <- function(dataset, objname) {
 # dataset is the dataset, objname is the name of the seurat object
 explore_EgressMarkers <- function(dataset, objname) {
   # create subdirectory to put the outputs into
-  foldername <- paste("ExploreEgressMarkers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
+  foldername <- paste("exploreEgressMarkers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
   oldwd <- getwd()
-  setwd(file.path(filenames))
+  setwd(file.path(foldername))
   
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: explore_EgressMarkers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
@@ -888,13 +1019,20 @@ explore_EgressMarkers <- function(dataset, objname) {
 # Cell cycle/proliferation marker Mki67
 # dataset is the dataset, objname is the name of the seurat object
 plot_EgressMarkers <- function(dataset, objname) {
-  # create subdirectory to put the outputs into
-  foldername <- paste("PlotEgressMarkers", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
-  oldwd <- getwd()
-  setwd(file.path(filenames))
   
+  # create subdirectory to put the outputs into
+  foldername <- paste("plotEgressMarkers", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: plot_EgressMarkers", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # change default assay to RNA, but create a temporary variable to change it back at the end. 
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
@@ -988,18 +1126,25 @@ plot_EgressMarkers <- function(dataset, objname) {
 
 # doPseudotime
 doPseudotime <- function(dataset, objname, partition_option = FALSE) {
+  
   # create subdirectory to put the outputs into
-  foldername <- paste("doPseudotime", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
-  dir.create(file.path(filenames))
+  foldername <- paste("doPseudotime", get_folder_timestamp(), sep = "_")
+  dir.create(file.path(foldername))
   oldwd <- getwd()
-  setwd(file.path(filenames))
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: doPseudotime", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+
   # temporarily change the default assay during the use of this function
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
   # Building trajectories with Monocle3
-  cds <- as.cell_data_set(dataset)
+  cds <- SeuratWrappers::as.cell_data_set(dataset)
   cds <- cluster_cells(cds = cds, reduction_method = "UMAP")
   # if the user defines partition_option = TRUE, it will separate into the two partition (as long as they're there)
   cds <- learn_graph(cds, use_partition = partition_option)
@@ -1066,38 +1211,47 @@ doPseudotime <- function(dataset, objname, partition_option = FALSE) {
 # For mouse, organism is "org.Mm.eg.db"
 # numsets is the number of GSEA plots to make (for the top up and down most enriched sets)
 # num_genesets is the number of gene sets to include in the table output. 
-doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db", numsets = 20, num_genesets = 200, installOrganism = FALSE) {
+doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db", numsets = 20, num_genesets = 200, installOrganism = FALSE, comparison = "cluster") {
   # GSEA with ClusterProfiler
   # https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
+  
   # create subdirectory to put the outputs into
-  clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
-  folderstring <- paste(clustername, "doGSEA", sep = "_") # Cluster0_doGSEA
-  foldername <- paste(folderstring, objname, sep="_") # Cluster0_doGSEA_combined.CD8s
-  filenames <- paste(foldername, Sys.time(), sep="_") # Cluster0_doGSEA_combined.CD8s_datetime
+  clustername <- paste("c", ClusterID, sep="") # c0
+  foldername <- paste("GSEA", get_folder_timestamp(), sep = "_") # GSEA_11_10_09
+  filenames <- paste(clustername, foldername, sep = "_") # c0_GSEA_11_10_09
   dir.create(file.path(filenames))
   oldwd <- getwd()
   setwd(file.path(filenames))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: doGSEA", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("comaprison: ", comparison), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
   # temporarily change the default assay during the use of this function
   tempdftassay <- DefaultAssay(dataset)
   DefaultAssay(dataset) <- "RNA"
   
-  # make a list of the different conditions, or "orig.ident"s
-  cond_list <- unique(dataset$orig.ident)
-  # make a string storing the comparison made, to include in file names later
   clustername <- paste("Cluster", ClusterID, sep="") # Cluster0
-  comparison_str <- paste(cond_list[1], cond_list[2], sep = "_vs_") # Egress_vs_Tumor
-  comparison_str2 <- paste(comparison_str, objname, sep = "_") # Egress_vs_Tumor_combined.CD8s
-  filename_str <- paste(clustername, comparison_str2, sep = "_") # Cluster0_Egress_vs_Tumor_combined.CD8s
+  if (comparison == "condition") {
+    # make a list of the different conditions, or "orig.ident"s
+    cond_list <- unique(dataset$orig.ident)
+    # make a string storing the comparison made, to include in file names later
+    comparison_str <- paste(cond_list[1], cond_list[2], sep = "_vs_") # Egress_vs_Tumor
+    comparison_str2 <- paste(comparison_str, objname, sep = "_") # Egress_vs_Tumor_combined.CD8s
+    filename_str <- paste(clustername, comparison_str2, sep = "_") # Cluster0_Egress_vs_Tumor_combined.CD8s
+    
+    # get the DE gene table using my custom function (essentially uses seurat's FindMarkers)
+    DE.genes.by.condition <- FindMarkersByCondition(dataset, objname, ClusterID, num_genes = 100, return_table = TRUE)
+  } else if (comparison == "cluster") {
+    comparison_str <- paste(clustername, "_vs_others") # Cluster0_vs_others
+    filename_str <- paste(clustername, comparison_str, sep = "_") # Cluster0_vs_others_combined.CD8s
+    # get the DE gene table using my custom function (essentially uses seurat's FindMarkers)
+    DE.genes.by.condition <- FindMarkersByCluster(dataset, objname, ClusterID, num_genes = 100, return_table = TRUE)
+  }
   
-  #if (installOrganism == TRUE) {
-  #  # SET THE DESIRED ORGANISM HERE
-  #  # organism = "org.Mm.eg.db"
-  #  BiocManager::install(organism, character.only = TRUE)
-  #  library(organism, character.only = TRUE)
-  #}
-  
-  # get the DE gene table using my custom function (essentially uses seurat's FindMarkers)
-  DE.genes.by.condition <- FindMarkersByCondition(dataset, objname, ClusterID, num_genes = 100, return_table = TRUE)
   # get the log2 fold change values
   ranked.list.prep <- DE.genes.by.condition$avg_log2FC
   # reconnect with the gene names
@@ -1178,7 +1332,7 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
   # create subdirectory to put the GSEA plots into
   # clustername # Cluster0
   
-  gsea_folder <- paste(filenames,"upGSEAPlots", sep = "_") # Cluster0_doGSEA_combined.CD8s_datetime
+  gsea_folder <- paste(filenames,"upPlots", sep = "_") # c0_GSEA_11_10_09_upPlots
   dir.create(file.path(gsea_folder))
   maindir <- getwd()
   setwd(file.path(gsea_folder))
@@ -1209,12 +1363,12 @@ doGSEA <- function(dataset, objname, ClusterID = "All", organism = "org.Mm.eg.db
     ct <- ct + 1
   }
   
-  # DOWN-retulated genesets...
+  # DOWN-regulated genesets...
   # return to main directory
   setwd(maindir) # come out of gsea plots folder
   # DOWN-regulated genes
   # create subdirectory to put the GSEA plots into
-  gsea_folder <- paste(filenames,"downGSEAPlots", sep = "_")
+  gsea_folder <- paste(filenames,"downPlots", sep = "_")
   dir.create(file.path(gsea_folder))
   setwd(file.path(gsea_folder))
   
@@ -1259,7 +1413,7 @@ doAnalysis <- function(dataset, objname, annotation_plots = TRUE) {
   
   # create subdirectory to put the outputs into
   foldername <- paste("SC-Analysis", objname, sep="_")
-  filenames <- paste(foldername, Sys.time(), sep="_")
+  filenames <- paste(foldername, get_folder_timestamp(), sep="_")
   dir.create(file.path(filenames))
   oldwd <- getwd()
   setwd(file.path(filenames))
@@ -1272,8 +1426,14 @@ doAnalysis <- function(dataset, objname, annotation_plots = TRUE) {
   # requires user input for selecting the starting point. 
   doPseudotime(dataset, objname)# For each cluster, finds DE genes between conditions. 
   
-  # Now includes GSEA comparing conditions for each cluster
+  # assess general DE Genes via a heatmap of the top 20 genes for each cluster
+  MakeDEHeatmap(dataset, objname)
+  
+  # DE and GSEA comparing conditions for each cluster in a dataset
   FindMarkersByConditionEachCluster(dataset, objname)
+  
+  # DE and GSEA comparing each cluster from the rest of that dataset
+  FindMarkersEachCluster(dataset, objname)
   
   # note: decided to skip this for now... not that worth it. 
   # For the entire dataset, find DE genes between conditions and find enriched gene sets
@@ -1305,7 +1465,9 @@ doAnalysis <- function(dataset, objname, annotation_plots = TRUE) {
 # # Subset CD8+ T-cells...
 # combined.cd8s <- subset(immune.combined, idents = c("2: CD8+ T-cells", "5: Mitotic T-cells"))
 # combined.cd8s <- doSeuratClustering(combined.cd8s)
-doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackstraw=TRUE) {
+# use reclustering=TRUE if this is an integrated dataset and you're subsetting a group to recluster. 
+doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackstraw=FALSE,
+                               reclustering=TRUE) {
   # Make subdirectory for this clustering
   foldername <- paste(objname, "clustering", sep="_") # combined.CD8s_clustering
   filenames <- paste(foldername, Sys.time(), sep="_") # combined.CD8s_clustering_datetime
@@ -1313,13 +1475,18 @@ doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackst
   oldwd <- getwd()
   setwd(file.path(filenames))
   
+  DefaultAssay(dataset) <- "RNA"
   # Begin Clustering
   print('~~FindVariableFeatures~~')
-  dataset <- FindVariableFeatures(dataset, selection.method = "vst", nfeatures = 2000)
-  print('~~ScaleData~~')
-  dataset <- ScaleData(dataset, verbose = FALSE)
-  print('~~RunPCA~~')
-  dataset <- RunPCA(dataset, npcs = num_pca_dims, verbose = FALSE)
+  dataset <- FindVariableFeatures(dataset, selection.method = "vst", nfeatures = 3500)
+  
+  if (reclustering == TRUE) {
+    DefaultAssay(dataset) <- "integrated"
+  }
+    print('~~ScaleData~~')
+    dataset <- ScaleData(dataset, verbose = FALSE)
+    print('~~RunPCA~~')
+    dataset <- RunPCA(dataset, npcs = num_pca_dims, verbose = FALSE)
   
   if (evaluatejackstraw == TRUE) {
     print('~~RunJackStraw~~')
@@ -1340,7 +1507,7 @@ doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackst
   print('~~FindNeighbors~~')
   dataset <- FindNeighbors(dataset, reduction = "pca", dims = 1:num_pca_dims)
   print('~~FindClusters~~')
-  dataset <- FindClusters(dataset, resolution = 0.5)
+  dataset <- FindClusters(dataset)
   
   # temporarily change the default assay during the use of this function
   # tempdftassay <- DefaultAssay(dataset)
@@ -1374,7 +1541,7 @@ doSeuratClustering <- function(dataset, objname, num_pca_dims=50, evaluatejackst
 # a GSEA try catch function to continue with the code if GSEA fails, which it
 # often does depending on the results of the DE gene analysis... If there are very few
 # DE expressed genes, for example. 
-tryGSEA <- function(dataset, objname, ClusterID) {
+tryGSEA <- function(dataset, objname, ClusterID, comparison = "cluster") {
   tryCatch(
     
     ########################################################
@@ -1382,32 +1549,72 @@ tryGSEA <- function(dataset, objname, ClusterID) {
     ########################################################
     
     {
-      # Try...
-      message(paste("Trying GSEA for cluster ", ClusterID))
-      oldwd <- getwd() # save the current wd. If it errors out, reset to that. 
-      # Write some stats to a log
-      cond_list <- unique(dataset$orig.ident)
-      
-      tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
-      cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
-      cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
-      cat(paste("Cluster ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
-      cat(paste("dataset size: ", as.character(dim(dataset))), file = tryGSEA_log, append = TRUE, sep = "\n")
-      cat(paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
-      cat(paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
-      
-      #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
-      #writeLines(c("\n",
-      #             "-----------------------------------------------------------",
-      #             "-----------------------------------------------------------",
-      #             paste("Cluster ", ClusterID), 
-      #             paste("dataset size: ", as.character(dim(dataset))),
-      #             paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])]))),
-      #             paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])))),
-      #           con = tryGSEA_log)
-      #close(tryGSEA_log)
-      
-      doGSEA(dataset, objname, ClusterID)
+      # When comparing condistions, try...
+      if (comparison == "condition") {
+        message(paste("Trying GSEA for cluster ", ClusterID))
+        oldwd <- getwd() # save the current wd. If it errors out, reset to that. 
+        # Write some stats to a log
+        cond_list <- unique(dataset$orig.ident)
+        
+        tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("Cluster ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("comparison: ", comparison), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("dataset size: ", as.character(dim(dataset))), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+        
+        #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
+        #writeLines(c("\n",
+        #             "-----------------------------------------------------------",
+        #             "-----------------------------------------------------------",
+        #             paste("Cluster ", ClusterID), 
+        #             paste("dataset size: ", as.character(dim(dataset))),
+        #             paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])]))),
+        #             paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])))),
+        #           con = tryGSEA_log)
+        #close(tryGSEA_log)
+        
+        doGSEA(dataset, objname, ClusterID, comparison = "condition")
+      } else if (comparison == "cluster") { # when comparing by clusters, try...
+        message(paste("Trying GSEA for cluster ", ClusterID))
+        oldwd <- getwd() # save the current wd. If it errors out, reset to that. 
+        # Write some stats to a log
+        tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("Cluster ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("comparison: ", comparison), file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("dataset size: ", as.character(dim(dataset))), file = tryGSEA_log, append = TRUE, sep = "\n")
+        #print("trying.....")
+        #clusterofinterest <- dataset[ which(dataset$seurat_clusters==ClusterID)]
+        #print(head(clusterofinterest))
+        #print("trying222.....")
+        #otherclusters <- dataset[ which(dataset$seurat_clusters!=ClusterID)]
+        #print(head(otherclusters))
+        #cat(paste("number of cond1: ", as.character(dim(clusterofinterest)[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+        #cat(paste("number of cond2: ", as.character(dim(otherclusters)[1])), file = tryGSEA_log, append = TRUE, sep = "\n")
+        
+        #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
+        #writeLines(c("\n",
+        #             "-----------------------------------------------------------",
+        #             "-----------------------------------------------------------",
+        #             paste("Cluster ", ClusterID), 
+        #             paste("dataset size: ", as.character(dim(dataset))),
+        #             paste("number of cond1: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[1])]))),
+        #             paste("number of cond2: ", as.character(dim(dataset[ which(dataset$orig.ident==cond_list[2])])))),
+        #           con = tryGSEA_log)
+        #close(tryGSEA_log)
+        
+        doGSEA(dataset, objname, ClusterID, comparison = "cluster")
+      } else {
+        message(paste("No 'comparison' input for cluster ", ClusterID))
+        tryGSEA_log <- paste(oldwd, "tryGSEA_log.txt", sep = "/")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat("-----------------------------------------------------------", file = tryGSEA_log, append = TRUE, sep = "\n")
+        cat(paste("No 'comparison' input for cluster ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
+      }
     },
     
     ########################################################################
@@ -1441,6 +1648,8 @@ tryGSEA <- function(dataset, objname, ClusterID) {
       cat("- - - - - - - - - - - - - - - - - - - -", file = tryGSEA_log, append = TRUE, sep = "\n")
       cat(paste(" ERROR IN CLUSTER ", ClusterID), file = tryGSEA_log, append = TRUE, sep = "\n")
       cat(as.character(cond), file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat('trying traceback(): ', file = tryGSEA_log, append = TRUE, sep = "\n")
+      cat(as.character(traceback()), file = tryGSEA_log, append = TRUE, sep = "\n")
       
       #tryGSEA_log <- file(paste(oldwd, "tryGSEA_log.txt", sep = "/"), open = "wt")
       #writeLines(c("\n",
@@ -1463,7 +1672,305 @@ tryGSEA <- function(dataset, objname, ClusterID) {
     
     finally = {
       setwd(oldwd) # come out of the folder for this process
-      message(paste("Processed GSEA for cluster ", ClusterID))
+      message(paste("\n ~~Processed GSEA for cluster ", ClusterID))
     }
   )    
 }
+
+# Make a dotplot with general annotation markers
+#neutrophil_panel1 <- c("Clec4d", "Csf3r", "Cxcr2", "Ngp", "Camp", "S100a9")
+#CD4_panel1 <- c("Foxp3", "Ctla4", "Cd5", "Trbc2", "Cd4", "Lef1")
+#NK_panel1 <- c("Tox", "Cd8a", "Nkg7", "Birc5", "Kif11", "Ncr1", "Klrb1c")
+#Mitotic_panel1 <- c("Cenpe", "Tubb5", "Thy1", "Top2a", "Mki67", "", "")
+#TissueTcells_panel1 <- c("Gata3", "Itgae", "Cxcr6", "Cd3d", "", "", "")
+#Mast_panel1 <- c("Gata2", "Kit", "Tpsb2", "Ccl9", "Fcgr3", "Csf1r", "C1qb", "Irf8")
+#DC_panel4 <- c("Clec9a", "Tlr11", "Xcr1", "Ccr7", "Arc", "Il15ra", "Ccl22", "")
+#Random_panel1 <- c("Ccr9", "Siglech", "Jchain", "Igkc", "Cd274", "", "", "")
+#Langerhans_panel1 <- c("Cd1d1", "Cd207", "Flt3l", "Batf3", "Irf8", "", "", "")
+#DC5_panel1 <- c("Axl", "Ptprc", "Csf1r", "", "", "", "", "")
+makeDotPlot <- function(dataset, objname, markers.to.plot = c(), my_levels = c()) {
+  # set default assay to RNA
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # Set levels to order the dotplot. 
+  print('trying to set levels for Idents...')
+  if (length(markers.to.plot) == 0) {
+    # this is for the original tumor+egress integrated dataset (before using SCTransform)
+    #my_levels <- c("3: CD4+ T-cells",    # "Cd3d", "Cd4", ""
+    #              "12: Tregs",          # "Foxp3", "Cd5", "Ctla4"
+    #              "2: CD8+ T-cells",    # "Cd8a", "Ccl5", "Trdc"
+    #              "5: Mitotic T-cells", # "Tubb5", "Mki67", ""
+    #              "11: CD3+ CD103+",    # "Itgae", "", ""
+    #              "4: NK cells",        # "Nkg7", "Klrb1c", ""
+    #              "9: Neutrophils",     # "Ly6g", "S100a9", "Ngp", "Cxcr2"
+    #              "18: Mast cells",     # "Gata2", "Kit", ""
+    #              "14: ?",              # "", "", ""
+    #              "17: pDCs",           # "Siglech", "Irf8", ""
+    #              "13: DCs",            # "", "", ""
+    #              "15: DCs",            # "Ccr7", "Clec9a", "Xcr1"
+    #              "16: DCs",            # "Ccl9", "Cd209e", "Itgax"
+    #              "6: DCs",             # "Cd80", "Cd86", ""
+    #              "0: DCs",             # "", "", ""
+    #              "7: Arc+ DCs",        # "Arc", "Il15ra", "Ccl22"
+    #              "1: Monocytes",       # "Itgam", "Ly6c1", ""
+    #              "8: Macrophages",     # "Csf1r", "Adgre1", ""
+    #              "10: B-cells"         # "Cd19", "Cd22", "Cd79a", "Cd79b
+    #              )
+    
+    # For the new tumor+egres integrated dataset: 
+    my_levels <- c("4: CD4+ T-cells",         # "Cd3d", "Cd4", ""
+                   "17: CD4+ T-cells",
+                   "11: Tregs",               # "Foxp3", "Cd5", "Ctla4"
+                   "3: CD8+ T-cells",         # "Cd8a", "Ccl5", "Trdc"
+                   "5: CD8+ T-cells",
+                   "13: gamma delta T-cells", # "Trdc", "Itgae"
+                   "20: Mitotic T-cells",     # "Tubb5", "Mki67", ""
+                   "2: NK cells",             # "Nkg7", "Klrb1c", ""
+                   "10: Neutrophils",         # "Ly6g", "S100a9", "Ngp", "Cxcr2"
+                   "21: Mast Cells",          # "Gata2", "Fcer1a", "Ms4a2", "Kit",
+                   "12: ?",                   # "", "", ""
+                   "18: ?",
+                   "22: cDC1s",
+                   "19: pDCs",                # "Siglech", "Irf8", ""
+                   "9: Mitotic DCs",
+                   "16: DCs",                 # "Ccr7", "Flt3l",
+                   "0: DCs",                  # "Clec9a", "Xcr1"
+                   "1: DCs",                  # "Ccl9", "Cd209e", "Itgax"
+                   "14: DCs",                 # "Cd80", "Cd86", "Sirpa"
+                                              # "Arc", "Il15ra", "Ccl22"
+                   "15: Monocytes",           # "Itgam", "Ly6c1", ""
+                   "6: Monos/Macs",           # "Csf1r", "Adgre1", ""
+                   "7: Monos/Macs",
+                   "8: B-cells"               # "Cd19", "Cd22", "Cd79a", "Cd79b
+    )
+    # labels for the new tumor+egressed integrated dataset
+                   #"0: DCs"
+                   #"1: DCs"
+                   #"2: NK cells"
+                   #"3: CD8+ T-cells"
+                   #"4: CD4+ T-cells"
+                   #"5: CD8+ T-cells"
+                   #"6: Monos/Macs"
+                   #"7: Monos/Macs"
+                   #"8: B-cells"
+                   #"9: Mitotic DCs"
+                   #"10: Neutrophils"
+                   #"11: Tregs"
+                   #"12: ?"
+                   #"13: gamma delta T-cells"
+                   #"14: DCs"
+                   #"15: Monocytes"
+                   #"16: CCR7-hi DCs"
+                   #"17: CD4+ T-cells"
+                   #"18: ?"
+                   #"19: pDCs"
+                   #"20: ?"
+                   #"21: Mast Cells"
+                   #"22: cDC1s"
+  }
+  
+  levels(dataset) <- rev(my_levels)
+  # factor(Idents(dataset), levels = my_levels)
+  # Idents(dataset) <- factor(Idents(dataset), levels = my_levels)
+  
+  print('trying to set markers...')
+  if (length(markers.to.plot) == 0) {
+    # these markers are from a seurat demo
+    # markers.to.plot <- c("Cd3d", "Crem", "Hsph1", # CD4 Memory t-cells
+    #                     "Sell", "Gimap5", "Cacybp", # CD4 naive t-cells
+    #                     "Gnly", "Nkg7", "Ccl5", 
+    #                     "Cd8a", "Ms4a1", "Cd79a", "Mir155hg", "Nme1", "Fcgr3a", "VmO1", "Ccl2", "S100a9", "Hla-dqa1", 
+    #                     "Gpr183", "Ppbp", "Gng11", "Hba2", "Hbb", "Tspan13", "Il3ra", "Igj")
+    
+    # My customized list: 
+    markers.to.plot <- c("Ptprc", "Cd44",                      # 
+                         "Cd3d", "Tcf7", "Trbc2", "Cd4",       # 
+                         "Foxp3", "Cd5", "Ctla4",              # 
+                         "Cd8a", "Cd8b1", "Ccl5",              # 
+                         "Irf7", "Mx1", "Mx2", "Stat1",        #
+                         "Trdc", "Itgae",                      # 
+                         "Tubb5", "Mki67",                     # 
+                         "Nkg7", "Klrb1c",                     # 
+                         "Ly6g", "S100a9", "S100a6", "Ngp", "Cxcr2",     # 
+                         "Gata2", "Fcer1a", "Ms4a2", "Kit",    # Mast Cells
+                         "Siglech", "Irf4", "Irf8", "Bst2", "Batf3",   # Irf8 and Batf3 are cDC1s
+                         "Ccr7", "Flt3l",                      # Flt3l is a cDC developmental marker
+                         "Clec9a", "Xcr1", "Cd24a",            # cDC1
+                         "Snx22", "Tlr3", "Ifi205", "Rab7b",   # cDC1 Kim et al 2020
+                         "Ccl9", "Cd209e", "Itgax",            # 
+                         "Cd80", "Cd86",                       # 
+                         "Zfp366", "Zbtb46", "Adam23",         # cDC both Kim et al 2020
+                         "Sirpa", "Clec10a",                   # cDC2
+                         "Haus8", "Mmp12", "Clec4a4", "Bex6",  # cDC2 Kim et al 2020
+                         "Arc", "Il15ra", "Ccl22",             # 
+                         "Itgam", "Ly6c1", "H2-Ab1",           # 
+                         "Csf1r", "Adgre1",                    # 
+                         "Cd14", "Fcgr3",                      # 
+                         "Cd19", "Cd22", "Cd79a", "Cd79b")     # B Cells
+  }
+  
+  # create subdirectory to put the outputs into
+  foldername <- paste("Dotplot", get_folder_timestamp(), sep="_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: makeDotPlot", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # temporarily change the default assay during the use of this function
+  
+  # plot UMAPs for context
+  DefaultAssay(dataset) <- "RNA"
+  #pdf(paste(objname, "UMAP1.pdf", sep="_"), width=12, height = 12)
+  #print(DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.75))
+  #dev.off()
+  # split by orig.ident
+  #pdf(paste(objname, "UMAP_byCondition1.pdf", sep="_"), width=12, height = 12)
+  #print(DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.75))
+  #dev.off()
+  print('trying umap...')
+  # split by orig.ident
+  p1 <- DimPlot(dataset, reduction = "umap", label = TRUE, repel = TRUE, pt.size = 1.25)
+  p2 <- DimPlot(dataset, reduction = "umap", group.by = "orig.ident", label = TRUE, repel = TRUE, pt.size = 1.25)
+  pdf(paste(objname, "UMAPs.pdf", sep="_"), width=18, height = 9)
+  print(p1 + p2)
+  dev.off()
+  
+  print('trying dotplot...')
+  # dotplot split by condition
+  pdf(paste(objname, "splitdotplot.pdf", sep="_"), width=20, height = 12)
+  dplot <- DotPlot(dataset, features = markers.to.plot, cols = c("red", "blue"), dot.scale = 8, 
+                split.by = "orig.ident") + RotatedAxis()
+  print(dplot)
+  dev.off()
+  
+  # dotplot not split
+  pdf(paste(objname, "dotplot.pdf", sep="_"), width=20, height = 8)
+  dplot <- DotPlot(dataset, features = markers.to.plot, 
+                   dot.scale = 12) + RotatedAxis()
+  print(dplot + scale_colour_gradient2(low = "#ee0000", mid = "#4d4d4d", high = "#00FF00"))
+  dev.off()
+  
+  # return to defaults
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd) # come out of the folder for this process
+}
+
+
+# For all clusters, find the DE genes between conditions
+# Note: Now includes GSEA! Does this for each cluster. 
+# Example, what's different between tumor vs. egressed in cluster 3? (for each cluster)
+# dataset is the seurat object
+# objname is obj_name(dataset)
+# example function call:
+# FindMarkersEachCluster(combined.DCs, get_obj_name(combined.DCs))
+FindMarkersEachCluster <- function(dataset, objname, runGsea = TRUE) {
+  
+  # create subdirectory to put the outputs into
+  foldername <- paste("GSEA_DE_ByCluster", get_folder_timestamp(), sep="_")
+  dir.create(file.path(foldername))
+  oldwd <- getwd()
+  setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  cat("Function: FindMarkersEachCluster", file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # temporarily change the default assay during the use of this function
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "integrated"
+  
+  # cycle through all clusters
+  # assumes cluster number starts at 0 and goes up as integers
+  # assumes clusters have not been renamed... could get around this by just using seurat clusters... Implemented below
+  ClusterList <- sort(c(unique(dataset$seurat_clusters)))-1
+  
+  for (ClusterID in ClusterList) {
+    # If we're running the doGSEA function, FindMarkersByCluster will be run anyway. 
+    if (runGsea == FALSE) {
+      FindMarkersByCluster(dataset, objname, ClusterID)
+    }
+    
+    # Make a text file that maps the seurat_clusters with the Idents, in case they've been renamed. 
+    idents_map <- paste(getwd(), "Cluster_Idents_Map.txt", sep = "/")
+    # subset out a given seurat_cluster, then just pick one of the Idents (seurat_clusters and Idents should be matched)
+    #data_subset <- dataset[ which(dataset$seurat_clusters==ClusterID)][1] # should just be one observation
+    #data_subset <- dataset[ which(Idents(dataset)==levels(dataset)[ClusterID])]
+    # data_subset <- dataset[ which(dataset[[]]['seurat_clusters'] == ClusterID)]
+    cells.use <- colnames(dataset)[which(dataset[[]]['seurat_clusters'] == ClusterID)]
+    cell_subset <- subset(dataset, cells = cells.use)
+    #print(cell_subset@meta.data)
+    #ClusterList <- c(unique(cell_subset$seurat_clusters))
+    # assumes only 2 conditions
+    #Name_List1 <- c(unique(Idents(cell_subset)))
+    #Name_List2 <- c(levels(cell_subset))
+    
+    part1 <- paste("ClusterID ", as.character(ClusterID))
+    part2 <- paste(" is named ", as.character(Idents(cell_subset)[1]))
+    # write to the map txt file
+    cat("-----------------------------------------------------------", file = idents_map, append = TRUE, sep = "\n")
+    cat(paste(part1,part2), file = idents_map, append = TRUE, sep = "\n")
+    #cat(as.character(dim(cell_subset)), file = idents_map, append = TRUE, sep = "\n")
+    #cat("ClusterList: ",  file = idents_map, append = TRUE, sep = "\n")
+    #cat(ClusterList,  file = idents_map, append = TRUE, sep = "\n")
+    #cat("Name_List1: ",  file = idents_map, append = TRUE, sep = "\n")
+    #cat(Name_List1,  file = idents_map, append = TRUE, sep = "\n")
+    #cat("Name_List2: ",  file = idents_map, append = TRUE, sep = "\n")
+    #cat(Name_List2,  file = idents_map, append = TRUE, sep = "\n")
+    
+    # use a trycatch here since GSEA gives errors so often.
+    #doGSEA(dataset, objname, ClusterID)
+    tryGSEA(dataset, objname, ClusterID, comparison = "cluster")
+  }
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
+  setwd(oldwd)
+}
+
+# just makes a heatmap of the top genes for each cluster
+# dataset is the seurat object
+# objname is obj_name(dataset)
+# example function call:
+# FindMarkersEachCluster(combined.DCs, get_obj_name(combined.DCs))
+MakeDEHeatmap <- function(dataset, objname, num_genes = 20) {
+  
+  # create subdirectory to put the outputs into
+  #foldername <- paste("DEHeatmap", get_folder_timestamp(), sep="_")
+  #dir.create(file.path(foldername))
+  #oldwd <- getwd()
+  #setwd(file.path(foldername))
+  
+  # Write some run info to a log
+  #run_log <- paste(getwd(), paste(objname, "_log.txt"), sep = "/")
+  #cat("Function: MakeDEHeatmap", file = run_log, append = TRUE, sep = "\n")
+  #cat(paste("Dataset: ", objname), file = run_log, append = TRUE, sep = "\n")
+  #cat(paste("Timestamp: ", Sys.time()), file = run_log, append = TRUE, sep = "\n")
+  
+  # temporarily change the default assay during the use of this function
+  tempdftassay <- DefaultAssay(dataset)
+  DefaultAssay(dataset) <- "RNA"
+  
+  # re-normalize and scale just in case
+  dataset <- NormalizeData(dataset)
+  dataset <- ScaleData(dataset)
+  datsetMarkers <- FindAllMarkers(dataset, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+  #naive.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC)
+  top_genes <- datsetMarkers %>% group_by(cluster) %>% top_n(n = num_genes, wt = avg_log2FC)
+  
+  # Heatmap of the above markers
+  pdf("DEHeatmap.pdf", height = 15)
+  print(DoHeatmap(dataset, features = top_genes$gene, size = 3) + NoLegend() + theme(axis.text.y = element_text(size = 5)))
+  dev.off()
+  
+  # Reset to original working directory and default array
+  DefaultAssay(dataset) <- tempdftassay
+  #setwd(oldwd)
+}
+
